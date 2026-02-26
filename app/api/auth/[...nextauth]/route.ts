@@ -130,10 +130,7 @@ const createKVAdapter = () => {
       };
       await kv.set(`verification:${identifier}:${token}`, JSON.stringify(verificationToken));
       await kv.expire(`verification:${identifier}:${token}`, 24 * 60 * 60); // 24 hours
-      return {
-        ...verificationToken,
-        expires,
-      };
+      return verificationToken;
     },
 
     async useVerificationToken({ identifier, token }: any) {
