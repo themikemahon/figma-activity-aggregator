@@ -1,5 +1,34 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import EmailProvider from 'next-auth/providers/email';
+import { kv } from '@vercel/kv';
+
+// Minimal adapter for email verification tokens only
+const createMinimalAdapter = () => ({
+  async createVerificationToken({ identifier, expires, token }: any) {
+    const verificationToken = {
+      identifier,
+      token,
+      expires: expires.toISOString(),
+    };
+    await kv.set(`verification:${identifier}:${token}`, JSON.stringify(verificationToken));
+    await kv.expire(`verification:${identifier}:${token}`, 24 * 60 * 60);
+    return verificationToken;
+  },
+
+  async useVerificationToken({ identifier, token }: any) {
+    const key = `verification:${identifier}:${token}`;
+    const tokenData = await kv.get(key);
+    if (!tokenData) return null;
+    
+    await kv.del(key);
+    const verificationToken = typeof tokenData === 'string' ? JSON.parse(tokenData) : tokenData;
+    
+    return {
+      ...verificationToken,
+      expires: new Date(verificationToken.expires),
+    };
+  },
+});
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -15,6 +44,7 @@ export const authOptions: NextAuthOptions = {
       from: process.env.EMAIL_FROM,
     }),
   ],
+  adapter: createMinimalAdapter() as any,
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days
