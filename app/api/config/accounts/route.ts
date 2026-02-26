@@ -82,12 +82,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Debug: Log the full session to see what we're getting
+    console.log('[ConfigAPI] Full session:', JSON.stringify(session, null, 2));
+    console.log('[ConfigAPI] Session user:', JSON.stringify(session.user, null, 2));
+
     // Parse request body
     const body = await request.json();
     const { accountName, pat } = body;
 
     // Use email as userId for JWT sessions
     const userId = session?.user?.email || 'unknown';
+    
+    console.log('[ConfigAPI] Using userId:', userId);
 
     logger.debug('Adding new account', {
       operation: 'POST',
