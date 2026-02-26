@@ -91,15 +91,51 @@ Generate coverage report:
 npm run test:coverage
 ```
 
+## Documentation
+
+### Setup and Deployment
+- [SETUP.md](./SETUP.md) - Local development setup
+- [DEPLOYMENT.md](./DEPLOYMENT.md) - Complete deployment guide for Vercel
+- [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) - Detailed environment variable setup
+- [CRON_CONFIGURATION.md](./CRON_CONFIGURATION.md) - Cron job scheduling guide
+
+### User Documentation
+- [USER_GUIDE.md](./docs/USER_GUIDE.md) - Complete user guide for managing Figma accounts and understanding Slack messages
+
+### Developer Documentation
+- [DEVELOPER_GUIDE.md](./docs/DEVELOPER_GUIDE.md) - Architecture, components, testing, and troubleshooting guide
+- [AUTHENTICATION.md](./docs/AUTHENTICATION.md) - Authentication setup details
+- [VERCEL_KV_SETUP.md](./docs/VERCEL_KV_SETUP.md) - Vercel KV database setup
+
 ## Deployment
 
-Deploy to Vercel:
+For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+Quick start:
+
+1. Create a Vercel KV database
+2. Configure environment variables in Vercel dashboard
+3. Deploy:
 
 ```bash
-vercel
+vercel --prod
 ```
 
-Configure environment variables in the Vercel dashboard and set up Vercel KV storage.
+4. Configure cron job (already set in `vercel.json`)
+5. Add Figma accounts via `/config` interface
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for complete setup guide.
+
+## Usage
+
+After deployment, users can:
+
+1. Sign in at `/config` using magic link authentication
+2. Add Figma Personal Access Tokens for their accounts
+3. View activity summaries in Slack
+4. Search activity history using Slack search or Glean
+
+For detailed usage instructions, see [USER_GUIDE.md](./docs/USER_GUIDE.md).
 
 ## Project Structure
 
@@ -117,10 +153,15 @@ Configure environment variables in the Vercel dashboard and set up Vercel KV sto
 │   ├── patMonitor.ts      # PAT expiration monitoring
 │   └── auth.ts            # Authentication utilities
 ├── __tests__/             # Test files
+├── docs/                  # Documentation
+│   ├── USER_GUIDE.md      # User documentation
+│   └── DEVELOPER_GUIDE.md # Developer documentation
 ├── .env.example           # Environment variable template
 ├── vercel.json            # Vercel configuration
 └── README.md              # This file
 ```
+
+For detailed architecture and component descriptions, see [DEVELOPER_GUIDE.md](./docs/DEVELOPER_GUIDE.md).
 
 ## License
 

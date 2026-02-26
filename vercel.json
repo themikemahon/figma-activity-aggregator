@@ -9,5 +9,9 @@
       "path": "/api/run-figma-digest",
       "schedule": "0 9 * * *"
     }
-  ]
+  ],
+  "env": {
+    "NEXTAUTH_URL": "https://your-app.vercel.app",
+    "NODE_ENV": "production"
+  }
 }
