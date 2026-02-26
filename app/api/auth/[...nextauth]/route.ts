@@ -4,6 +4,58 @@ import { kv } from '@vercel/kv';
 
 // Minimal adapter for email verification tokens only
 const createMinimalAdapter = () => ({
+  async createUser(user: any) {
+    // For JWT sessions, we don't actually store users
+    // Just return a user object with email
+    return {
+      id: crypto.randomUUID(),
+      email: user.email,
+      emailVerified: new Date(),
+    };
+  },
+
+  async getUser(id: string) {
+    // Not needed for JWT sessions
+    return null;
+  },
+
+  async getUserByEmail(email: string) {
+    // For JWT, just return a user object
+    return {
+      id: crypto.randomUUID(),
+      email,
+      emailVerified: null,
+    };
+  },
+
+  async getUserByAccount() {
+    return null;
+  },
+
+  async updateUser(user: any) {
+    return user;
+  },
+
+  async linkAccount() {
+    return null;
+  },
+
+  async createSession() {
+    return null;
+  },
+
+  async getSessionAndUser() {
+    return null;
+  },
+
+  async updateSession() {
+    return null;
+  },
+
+  async deleteSession() {
+    return null;
+  },
+
   async createVerificationToken({ identifier, expires, token }: any) {
     const verificationToken = {
       identifier,
