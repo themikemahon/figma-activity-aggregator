@@ -73,8 +73,8 @@ const createMinimalAdapter = () => ({
     const sessionKey = `verification-session:${identifier}:${token}`;
     
     console.log('[Auth] useVerificationToken called');
-    console.log('[Auth] Looking for token key:', key);
-    console.log('[Auth] Looking for session key:', sessionKey);
+    console.log('[Auth] Identifier:', identifier);
+    console.log('[Auth] Token (first 20 chars):', token.substring(0, 20));
     
     // Check if there's an active session from a recent verification
     const existingSession = await kv.get(sessionKey);
@@ -107,15 +107,14 @@ const createMinimalAdapter = () => ({
       return null;
     }
     
-    // Create a session that lasts 60 seconds to handle email security scanners
-    console.log('[Auth] Creating verification session');
+    // Create a session that lasts 5 minutes to handle email security scanners
+    console.log('[Auth] Creating verification session (5 min TTL)');
     await kv.set(sessionKey, JSON.stringify(verificationToken));
-    await kv.expire(sessionKey, 60);
+    await kv.expire(sessionKey, 300); // 5 minutes instead of 60 seconds
     console.log('[Auth] Session created successfully');
     
-    // Delete the original token
-    await kv.del(key);
-    console.log('[Auth] Original token deleted');
+    // Don't delete the original token immediately - let it expire naturally
+    console.log('[Auth] Keeping original token for fallback');
     
     console.log('[Auth] Token is valid, created session, expires:', verificationToken.expires);
     return {
