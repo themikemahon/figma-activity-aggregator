@@ -20,7 +20,8 @@ const KVAdapter = {
 
   async getUser(id: string) {
     const userData = await kv.get(`user:${id}`);
-    return userData ? JSON.parse(userData as string) : null;
+    if (!userData) return null;
+    return typeof userData === 'string' ? JSON.parse(userData) : userData;
   },
 
   async getUserByEmail(email: string) {
@@ -28,7 +29,7 @@ const KVAdapter = {
     for (const userId of userIds) {
       const userData = await kv.get(`user:${userId}`);
       if (userData) {
-        const user = JSON.parse(userData as string);
+        const user = typeof userData === 'string' ? JSON.parse(userData) : userData;
         if (user.email === email) {
           return user;
         }
@@ -85,7 +86,7 @@ const KVAdapter = {
     const sessionData = await kv.get(`session:${sessionToken}`);
     if (!sessionData) return null;
     
-    const session = JSON.parse(sessionData as string);
+    const session = typeof sessionData === 'string' ? JSON.parse(sessionData) : sessionData;
     const user = await this.getUser(session.userId);
     
     if (!user) return null;
@@ -103,7 +104,7 @@ const KVAdapter = {
     const sessionData = await kv.get(`session:${sessionToken}`);
     if (!sessionData) return null;
     
-    const session = JSON.parse(sessionData as string);
+    const session = typeof sessionData === 'string' ? JSON.parse(sessionData) : sessionData;
     const updatedSession = {
       ...session,
       expires: expires ? expires.toISOString() : session.expires,
