@@ -3,11 +3,5 @@
     "app/api/**/*.ts": {
       "maxDuration": 60
     }
-  },
-  "crons": [
-    {
-      "path": "/api/run-figma-digest",
-      "schedule": "0 * * * *"
-    }
-  ]
+  }
 }
