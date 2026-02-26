@@ -71,7 +71,17 @@ const createMinimalAdapter = () => ({
 
   async useVerificationToken({ identifier, token }: any) {
     const key = `verification:${identifier}:${token}`;
+    const usedKey = `${key}:used`;
+    
     console.log('[Auth] Looking for verification token:', key);
+    
+    // Check if already used recently
+    const alreadyUsed = await kv.get(usedKey);
+    if (alreadyUsed) {
+      console.log('[Auth] Token was already used recently');
+      return null;
+    }
+    
     const tokenData = await kv.get(key);
     
     if (!tokenData) {
@@ -79,9 +89,17 @@ const createMinimalAdapter = () => ({
       return null;
     }
     
-    console.log('[Auth] Verification token found, deleting...');
-    await kv.del(key);
+    console.log('[Auth] Verification token found');
     const verificationToken = typeof tokenData === 'string' ? JSON.parse(tokenData) : tokenData;
+    
+    // Mark as used but keep for 30 seconds to handle double-clicks
+    await kv.set(usedKey, '1');
+    await kv.expire(usedKey, 30);
+    
+    // Delete the actual token after a short delay
+    setTimeout(async () => {
+      await kv.del(key);
+    }, 5000);
     
     console.log('[Auth] Token expires:', verificationToken.expires);
     return {
