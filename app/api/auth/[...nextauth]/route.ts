@@ -5,10 +5,9 @@ import { kv } from '@vercel/kv';
 // Minimal adapter for email verification tokens only
 const createMinimalAdapter = () => ({
   async createUser(user: any) {
-    // For JWT sessions, we don't actually store users
-    // Just return a user object with email
+    // For JWT sessions, return a user object with email
     return {
-      id: crypto.randomUUID(),
+      id: user.email, // Use email as ID
       email: user.email,
       emailVerified: new Date(),
     };
@@ -20,9 +19,9 @@ const createMinimalAdapter = () => ({
   },
 
   async getUserByEmail(email: string) {
-    // For JWT, just return a user object
+    // For JWT, return a user object with the email
     return {
-      id: crypto.randomUUID(),
+      id: email, // Use email as ID
       email,
       emailVerified: null,
     };
