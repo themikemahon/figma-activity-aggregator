@@ -12,7 +12,7 @@ const logger = createLogger('ConfigAccountDeleteAPI');
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { accountName: string } }
+  { params }: { params: Promise<{ accountName: string }> }
 ) {
   try {
     // Check authentication
@@ -27,7 +27,8 @@ export async function DELETE(
       );
     }
 
-    const accountName = params.accountName;
+    // Await params in Next.js 16+
+    const { accountName } = await params;
 
     logger.debug('Deleting account', {
       operation: 'DELETE',
