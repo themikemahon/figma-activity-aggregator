@@ -170,17 +170,24 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     async jwt({ token, user }) {
-      console.log('[Auth] jwt callback');
-      if (user) {
+      console.log('[Auth] jwt callback, user:', user?.email, 'token.email:', token.email);
+      if (user?.email) {
         token.email = user.email;
       }
       return token;
     },
     async session({ session, token }) {
-      console.log('[Auth] session callback');
-      if (session.user && token.email) {
-        session.user.email = token.email as string;
+      console.log('[Auth] session callback, token.email:', token.email);
+      // Populate user from token
+      if (token.email) {
+        session.user = {
+          id: token.email as string, // Use email as ID for JWT sessions
+          email: token.email as string,
+          name: token.name as string | undefined,
+          image: token.picture as string | undefined,
+        };
       }
+      console.log('[Auth] session.user.email set to:', session.user?.email);
       return session;
     },
   },

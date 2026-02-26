@@ -82,6 +82,13 @@ export class PATMonitor {
             isExpired,
           });
         }
+      } else {
+        // No expiration data available - PAT is valid but we don't know when it expires
+        logger.info('PAT is valid but no expiration data available', {
+          operation: 'checkPATExpiration',
+          userId,
+          accountName,
+        });
       }
 
       logger.info('PAT expiration check completed', {
@@ -103,7 +110,7 @@ export class PATMonitor {
       };
     } catch (error) {
       logger.partialFailure(
-        'Failed to check PAT expiration, assuming expired',
+        'Failed to check PAT - API call failed',
         error instanceof Error ? error : new Error('Unknown error'),
         {
           operation: 'checkPATExpiration',
@@ -112,14 +119,15 @@ export class PATMonitor {
         }
       );
 
-      // If we can't check the PAT, assume it's expired
+      // If the API call fails, we can't determine expiration status
+      // Don't assume it's expired - just skip this account for warnings
       return {
         userId,
         accountName,
         expiresAt: null,
         daysUntilExpiry: null,
-        isExpired: true,
-        needsWarning: true,
+        isExpired: false,
+        needsWarning: false,
       };
     }
   }
