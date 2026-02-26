@@ -128,7 +128,10 @@ const KVAdapter = {
     };
     await kv.set(`verification:${identifier}:${token}`, JSON.stringify(verificationToken));
     await kv.expire(`verification:${identifier}:${token}`, 24 * 60 * 60); // 24 hours
-    return verificationToken;
+    return {
+      ...verificationToken,
+      expires,
+    };
   },
 
   async useVerificationToken({ identifier, token }: any) {
@@ -137,7 +140,14 @@ const KVAdapter = {
     if (!tokenData) return null;
     
     await kv.del(key);
-    const verificationToken = JSON.parse(tokenData as string);
+    
+    // Handle both string and object responses from KV
+    let verificationToken;
+    if (typeof tokenData === 'string') {
+      verificationToken = JSON.parse(tokenData);
+    } else {
+      verificationToken = tokenData;
+    }
     
     return {
       ...verificationToken,
