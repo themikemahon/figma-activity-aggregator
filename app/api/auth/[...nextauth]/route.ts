@@ -178,7 +178,7 @@ export const authOptions: NextAuthOptions = {
   ],
   adapter: createKVAdapter() as any,
   session: {
-    strategy: 'database',
+    strategy: 'jwt', // Use JWT instead of database sessions
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   cookies: {
