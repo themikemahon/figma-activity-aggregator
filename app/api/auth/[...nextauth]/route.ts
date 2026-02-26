@@ -62,19 +62,28 @@ const createMinimalAdapter = () => ({
       token,
       expires: expires.toISOString(),
     };
-    await kv.set(`verification:${identifier}:${token}`, JSON.stringify(verificationToken));
-    await kv.expire(`verification:${identifier}:${token}`, 24 * 60 * 60);
+    const key = `verification:${identifier}:${token}`;
+    console.log('[Auth] Creating verification token:', key, 'expires:', verificationToken.expires);
+    await kv.set(key, JSON.stringify(verificationToken));
+    await kv.expire(key, 24 * 60 * 60);
     return verificationToken;
   },
 
   async useVerificationToken({ identifier, token }: any) {
     const key = `verification:${identifier}:${token}`;
+    console.log('[Auth] Looking for verification token:', key);
     const tokenData = await kv.get(key);
-    if (!tokenData) return null;
     
+    if (!tokenData) {
+      console.log('[Auth] Verification token not found');
+      return null;
+    }
+    
+    console.log('[Auth] Verification token found, deleting...');
     await kv.del(key);
     const verificationToken = typeof tokenData === 'string' ? JSON.parse(tokenData) : tokenData;
     
+    console.log('[Auth] Token expires:', verificationToken.expires);
     return {
       ...verificationToken,
       expires: new Date(verificationToken.expires),
