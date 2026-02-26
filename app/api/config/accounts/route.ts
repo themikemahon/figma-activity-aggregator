@@ -87,11 +87,11 @@ export async function POST(request: NextRequest) {
     const { accountName, pat } = body;
 
     // Use email as userId for JWT sessions
-    const userId = session.user.email || 'unknown';
+    const userId = session?.user?.email || 'unknown';
 
     logger.debug('Adding new account', {
       operation: 'POST',
-      userEmail: session.user.email,
+      userEmail: session?.user?.email,
       accountName,
     });
 
