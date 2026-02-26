@@ -80,7 +80,11 @@ const createKVAdapter = () => {
       const session = { sessionToken, userId, expires: expires.toISOString() };
       await kv.set(`session:${sessionToken}`, JSON.stringify(session));
       await kv.expire(`session:${sessionToken}`, 30 * 24 * 60 * 60); // 30 days
-      return session;
+      return {
+        sessionToken,
+        userId,
+        expires, // Return Date object for NextAuth
+      };
     },
 
     async getSessionAndUser(sessionToken: string) {
