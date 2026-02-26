@@ -27,12 +27,13 @@ export async function GET(request: NextRequest) {
 
     logger.debug('Fetching user accounts', {
       operation: 'GET',
-      userId: session.user.id,
+      userEmail: session.user.email,
     });
 
-    // Get user's accounts
+    // Get user's accounts (use email as userId for JWT sessions)
+    const userId = session.user.email || 'unknown';
     const storage = new Storage(process.env.ENCRYPTION_KEY!);
-    const accounts = await storage.getUserAccounts(session.user.id);
+    const accounts = await storage.getUserAccounts(userId);
 
     // Mask PAT values (show only last 4 characters)
     const maskedAccounts = accounts.map(account => ({
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     logger.info('User accounts fetched successfully', {
       operation: 'GET',
-      userId: session.user.id,
+      userEmail: session.user.email,
       accountCount: accounts.length,
     });
 
@@ -85,9 +86,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { accountName, pat } = body;
 
+    // Use email as userId for JWT sessions
+    const userId = session.user.email || 'unknown';
+
     logger.debug('Adding new account', {
       operation: 'POST',
-      userId: session.user.id,
+      userEmail: session.user.email,
       accountName,
     });
 
@@ -95,7 +99,7 @@ export async function POST(request: NextRequest) {
     if (!accountName || typeof accountName !== 'string') {
       logger.warn('Invalid account name', {
         operation: 'POST',
-        userId: session.user.id,
+        userEmail: session.user.email,
       });
       return NextResponse.json(
         { error: 'Account name is required' },
@@ -106,7 +110,7 @@ export async function POST(request: NextRequest) {
     if (!pat || typeof pat !== 'string') {
       logger.warn('Invalid PAT', {
         operation: 'POST',
-        userId: session.user.id,
+        userEmail: session.user.email,
         accountName,
       });
       return NextResponse.json(
@@ -119,7 +123,7 @@ export async function POST(request: NextRequest) {
     if (!/^[a-zA-Z0-9_-]+$/.test(accountName)) {
       logger.warn('Invalid account name format', {
         operation: 'POST',
-        userId: session.user.id,
+        userEmail: session.user.email,
         accountName,
       });
       return NextResponse.json(
@@ -130,12 +134,12 @@ export async function POST(request: NextRequest) {
 
     // Check if account name already exists for this user
     const storage = new Storage(process.env.ENCRYPTION_KEY!);
-    const existingAccounts = await storage.getUserAccounts(session.user.id);
+    const existingAccounts = await storage.getUserAccounts(userId);
     
     if (existingAccounts.some(acc => acc.accountName === accountName)) {
       logger.warn('Account name already exists', {
         operation: 'POST',
-        userId: session.user.id,
+        userEmail: session.user.email,
         accountName,
       });
       return NextResponse.json(
@@ -147,7 +151,7 @@ export async function POST(request: NextRequest) {
     // Validate PAT by making a test API call to Figma
     logger.debug('Validating PAT with Figma API', {
       operation: 'POST',
-      userId: session.user.id,
+      userEmail: session.user.email,
       accountName,
     });
 
@@ -163,7 +167,7 @@ export async function POST(request: NextRequest) {
       if (error.status === 401 || error.status === 403) {
         logger.warn('PAT validation failed - authentication error', {
           operation: 'POST',
-          userId: session.user.id,
+          userEmail: session.user.email,
           accountName,
           status: error.status,
         });
@@ -175,7 +179,7 @@ export async function POST(request: NextRequest) {
       
       logger.warn('PAT validation failed', {
         operation: 'POST',
-        userId: session.user.id,
+        userEmail: session.user.email,
         accountName,
         error: error.message,
       });
@@ -197,7 +201,7 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
 
     await storage.saveUserAccount({
-      userId: session.user.id,
+      userId,
       accountName,
       encryptedPAT,
       createdAt: now,
@@ -207,7 +211,7 @@ export async function POST(request: NextRequest) {
 
     logger.info('Account added successfully', {
       operation: 'POST',
-      userId: session.user.id,
+      userEmail: session.user.email,
       accountName,
       figmaUserId: figmaUser.id,
     });
