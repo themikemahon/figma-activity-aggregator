@@ -73,27 +73,31 @@ const createMinimalAdapter = () => ({
     const key = `verification:${identifier}:${token}`;
     const sessionKey = `verification-session:${identifier}:${token}`;
     
-    console.log('[Auth] Looking for verification token:', key);
+    console.log('[Auth] useVerificationToken called');
+    console.log('[Auth] Looking for token key:', key);
+    console.log('[Auth] Looking for session key:', sessionKey);
     
     // Check if there's an active session from a recent verification
     const existingSession = await kv.get(sessionKey);
     if (existingSession) {
-      console.log('[Auth] Using existing verification session');
+      console.log('[Auth] Found existing verification session!');
       const sessionData = typeof existingSession === 'string' ? JSON.parse(existingSession) : existingSession;
       return {
         ...sessionData,
         expires: new Date(sessionData.expires),
       };
+    } else {
+      console.log('[Auth] No existing session found');
     }
     
     const tokenData = await kv.get(key);
     
     if (!tokenData) {
-      console.log('[Auth] Verification token not found');
+      console.log('[Auth] Verification token not found in KV');
       return null;
     }
     
-    console.log('[Auth] Verification token found');
+    console.log('[Auth] Verification token found in KV!');
     const verificationToken = typeof tokenData === 'string' ? JSON.parse(tokenData) : tokenData;
     
     // Check if token is expired
@@ -105,11 +109,14 @@ const createMinimalAdapter = () => ({
     }
     
     // Create a session that lasts 60 seconds to handle email security scanners
+    console.log('[Auth] Creating verification session');
     await kv.set(sessionKey, JSON.stringify(verificationToken));
     await kv.expire(sessionKey, 60);
+    console.log('[Auth] Session created successfully');
     
     // Delete the original token
     await kv.del(key);
+    console.log('[Auth] Original token deleted');
     
     console.log('[Auth] Token is valid, created session, expires:', verificationToken.expires);
     return {
@@ -145,6 +152,7 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user }) {
+      console.log('[Auth] signIn callback, user:', user.email);
       // Check email whitelist if configured
       const allowedEmails = process.env.ALLOWED_EMAILS;
       
@@ -160,15 +168,18 @@ export const authOptions: NextAuthOptions = {
         console.log(`[Auth] Access granted for whitelisted email: ${userEmail}`);
       }
       
+      console.log('[Auth] signIn successful');
       return true;
     },
     async jwt({ token, user }) {
+      console.log('[Auth] jwt callback');
       if (user) {
         token.email = user.email;
       }
       return token;
     },
     async session({ session, token }) {
+      console.log('[Auth] session callback');
       if (session.user && token.email) {
         session.user.email = token.email as string;
       }
