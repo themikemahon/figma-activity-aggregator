@@ -169,25 +169,40 @@ export const authOptions: NextAuthOptions = {
       console.log('[Auth] signIn successful');
       return true;
     },
-    async jwt({ token, user }) {
-      console.log('[Auth] jwt callback, user:', user?.email, 'token.email:', token.email);
+    async jwt({ token, user, account, profile }) {
+      console.log('[Auth] jwt callback');
+      console.log('[Auth] - user:', JSON.stringify(user));
+      console.log('[Auth] - token.email before:', token.email);
+      console.log('[Auth] - token.sub:', token.sub);
+      
+      // On sign-in, user object will be present
       if (user?.email) {
         token.email = user.email;
+        token.sub = user.email; // Use email as subject
       }
+      
+      console.log('[Auth] - token.email after:', token.email);
       return token;
     },
     async session({ session, token }) {
-      console.log('[Auth] session callback, token.email:', token.email);
-      // Populate user from token
-      if (token.email) {
+      console.log('[Auth] session callback');
+      console.log('[Auth] - token:', JSON.stringify(token));
+      console.log('[Auth] - token.email:', token.email);
+      console.log('[Auth] - token.sub:', token.sub);
+      
+      // Populate user from token - use sub as fallback if email not present
+      const email = (token.email || token.sub) as string;
+      
+      if (email) {
         session.user = {
-          id: token.email as string, // Use email as ID for JWT sessions
-          email: token.email as string,
+          id: email,
+          email: email,
           name: token.name as string | undefined,
           image: token.picture as string | undefined,
         };
       }
-      console.log('[Auth] session.user.email set to:', session.user?.email);
+      
+      console.log('[Auth] - session.user.email set to:', session.user?.email);
       return session;
     },
   },
