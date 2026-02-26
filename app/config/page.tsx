@@ -16,9 +16,10 @@ export default async function ConfigPage() {
     redirect('/auth/signin');
   }
 
-  // Get user's configured accounts
+  // Get user's configured accounts (use email as userId)
+  const userId = session.user.email || 'unknown';
   const storage = new Storage(process.env.ENCRYPTION_KEY!);
-  const accounts = await storage.getUserAccounts(session.user.id);
+  const accounts = await storage.getUserAccounts(userId);
 
   // Mask PAT values (show only last 4 characters)
   const maskedAccounts = accounts.map(account => ({
