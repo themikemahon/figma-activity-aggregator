@@ -23,13 +23,26 @@ export async function GET() {
         const expires = await kv.get(`user:${userId}:account:${accountName}:expires`);
         const lastDigest = await kv.get(`user:${userId}:account:${accountName}:lastDigest`);
         
+        let teamIdsParsed = null;
+        try {
+          if (teamIds) {
+            if (Array.isArray(teamIds)) {
+              teamIdsParsed = teamIds;
+            } else {
+              teamIdsParsed = JSON.parse(String(teamIds));
+            }
+          }
+        } catch (e) {
+          teamIdsParsed = String(teamIds);
+        }
+        
         debug.accounts.push({
           userId,
           accountName,
           hasPAT: !!pat,
           patPreview: pat ? `${String(pat).substring(0, 20)}...` : null,
           teamIds,
-          teamIdsParsed: teamIds ? JSON.parse(String(teamIds)) : null,
+          teamIdsParsed,
           createdAt,
           updatedAt,
           expires,
