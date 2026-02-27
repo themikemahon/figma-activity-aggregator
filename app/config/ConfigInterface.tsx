@@ -35,7 +35,6 @@ export default function ConfigInterface({ accounts, userEmail, userName }: Confi
     setMessage('');
 
     try {
-      // Update team IDs
       const response = await fetch(`/api/config/accounts/${encodeURIComponent(accountName)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -48,7 +47,6 @@ export default function ConfigInterface({ accounts, userEmail, userName }: Confi
         return;
       }
 
-      // Register webhooks for each team
       for (const teamId of teamIds) {
         try {
           await fetch('/api/webhooks/register', {
@@ -58,7 +56,6 @@ export default function ConfigInterface({ accounts, userEmail, userName }: Confi
           });
         } catch (webhookError) {
           console.error('Failed to register webhook:', webhookError);
-          // Continue even if webhook registration fails
         }
       }
 
@@ -97,170 +94,159 @@ export default function ConfigInterface({ accounts, userEmail, userName }: Confi
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ margin: '0 0 0.5rem 0' }}>Figma Activity Aggregator</h1>
-          <p style={{ margin: 0, color: '#666' }}>Signed in as: {userName} ({userEmail})</p>
+    <div className="flex min-h-screen">
+      {/* Sidebar */}
+      <aside className="w-60 bg-figma-sidebar border-r border-figma-border flex flex-col">
+        <div className="p-4 border-b border-figma-border">
+          <h2 className="text-sm font-semibold text-figma-text">Figma Aggregator</h2>
         </div>
-        <button
-          onClick={() => signOut({ callbackUrl: '/' })}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: '#666',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
-          Sign Out
-        </button>
-      </div>
-
-      {message && (
-        <div style={{
-          padding: '1rem',
-          marginBottom: '1rem',
-          backgroundColor: message.includes('Error') ? '#ffebee' : '#e8f5e9',
-          color: message.includes('Error') ? '#c62828' : '#2e7d32',
-          borderRadius: '4px',
-        }}>
-          {message}
-        </div>
-      )}
-
-      <div style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h2 style={{ margin: 0 }}>Connected Accounts</h2>
-          <a
-            href="/api/link-figma-account"
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: '#1976d2',
-              color: 'white',
-              textDecoration: 'none',
-              borderRadius: '4px',
-              fontSize: '0.9rem',
-            }}
+        <nav className="flex-1 p-2">
+          <div className="px-3 py-2 text-sm font-medium text-figma-text bg-white rounded">
+            Accounts
+          </div>
+        </nav>
+        <div className="p-4 border-t border-figma-border">
+          <div className="text-xs text-figma-text-tertiary mb-2">{userName}</div>
+          <div className="text-xs text-figma-text-tertiary mb-3 truncate">{userEmail}</div>
+          <button
+            onClick={() => signOut({ callbackUrl: '/' })}
+            className="w-full px-3 py-1.5 text-xs font-medium text-figma-text-secondary hover:bg-white rounded transition-colors"
           >
-            + Link Another Figma Account
-          </a>
+            Sign Out
+          </button>
         </div>
-        {accounts.length === 0 ? (
-          <p style={{ color: '#666' }}>No accounts connected.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {accounts.map(account => (
-              <div
-                key={account.accountName}
-                style={{
-                  padding: '1.5rem',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-                  <div>
-                    <h3 style={{ margin: '0 0 0.5rem 0' }}>{account.accountName}</h3>
-                    <p style={{ margin: '0.25rem 0', color: '#666', fontSize: '0.9rem' }}>
-                      Email: {account.email}
-                    </p>
-                    <p style={{ margin: '0.25rem 0', color: '#999', fontSize: '0.85rem' }}>
-                      Connected: {new Date(account.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteAccount(account.accountName)}
-                    disabled={loading[account.accountName]}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      backgroundColor: '#d32f2f',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '0.9rem',
-                    }}
-                  >
-                    {loading[account.accountName] ? 'Deleting...' : 'Delete'}
-                  </button>
-                </div>
+      </aside>
 
-                <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem' }}>Team IDs</h4>
-                  {account.teamIds && account.teamIds.length > 0 ? (
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: '#666' }}>
-                        Current: {account.teamIds.join(', ')}
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-4xl mx-auto p-8">
+          {message && (
+            <div className={`mb-6 px-4 py-3 rounded-lg text-sm ${
+              message.includes('Error') 
+                ? 'bg-red-50 text-red-800 border border-red-200' 
+                : 'bg-green-50 text-green-800 border border-green-200'
+            }`}>
+              {message}
+            </div>
+          )}
+
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl font-semibold text-figma-text">Connected Accounts</h1>
+              <a
+                href="/api/link-figma-account"
+                className="px-4 py-2 bg-figma-primary hover:bg-figma-primary-hover text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                + Link Figma Account
+              </a>
+            </div>
+
+            {accounts.length === 0 ? (
+              <div className="bg-figma-panel border border-figma-border rounded-lg p-8 text-center">
+                <p className="text-figma-text-secondary">No accounts connected yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {accounts.map(account => (
+                  <div
+                    key={account.accountName}
+                    className="bg-white border border-figma-border rounded-lg p-6"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-base font-semibold text-figma-text mb-1">
+                          {account.accountName}
+                        </h3>
+                        <p className="text-sm text-figma-text-secondary mb-1">
+                          {account.email}
+                        </p>
+                        <p className="text-xs text-figma-text-tertiary">
+                          Connected {new Date(account.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteAccount(account.accountName)}
+                        disabled={loading[account.accountName]}
+                        className="px-3 py-1.5 bg-figma-danger hover:bg-figma-danger-hover text-white text-sm font-medium rounded transition-colors disabled:opacity-50"
+                      >
+                        {loading[account.accountName] ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
+
+                    <div className="bg-figma-panel border border-figma-border rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-figma-text mb-2">Team IDs</h4>
+                      {account.teamIds && account.teamIds.length > 0 ? (
+                        <p className="text-xs text-figma-text-secondary mb-3">
+                          Current: {account.teamIds.join(', ')}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-figma-danger mb-3">
+                          No team IDs configured - digest will not track activity
+                        </p>
+                      )}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Enter team IDs (comma-separated)"
+                          value={teamIdsInput[account.accountName] || ''}
+                          onChange={(e) => setTeamIdsInput({ ...teamIdsInput, [account.accountName]: e.target.value })}
+                          className="flex-1 px-3 py-2 text-sm border border-figma-border rounded focus:outline-none focus:ring-2 focus:ring-figma-primary"
+                        />
+                        <button
+                          onClick={() => handleUpdateTeamIds(account.accountName)}
+                          disabled={loading[account.accountName]}
+                          className="px-4 py-2 bg-figma-primary hover:bg-figma-primary-hover text-white text-sm font-medium rounded transition-colors disabled:opacity-50"
+                        >
+                          {loading[account.accountName] ? 'Updating...' : 'Update'}
+                        </button>
+                      </div>
+                      <p className="text-xs text-figma-text-tertiary mt-2">
+                        Find team IDs in your Figma team URLs: figma.com/files/TEAM_ID/...
                       </p>
                     </div>
-                  ) : (
-                    <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#d32f2f' }}>
-                      No team IDs configured - digest will not track activity
-                    </p>
-                  )}
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    <input
-                      type="text"
-                      placeholder="Enter team IDs (comma-separated)"
-                      value={teamIdsInput[account.accountName] || ''}
-                      onChange={(e) => setTeamIdsInput({ ...teamIdsInput, [account.accountName]: e.target.value })}
-                      style={{
-                        flex: 1,
-                        padding: '0.5rem',
-                        border: '1px solid #ddd',
-                        borderRadius: '4px',
-                        fontSize: '0.9rem',
-                      }}
-                    />
-                    <button
-                      onClick={() => handleUpdateTeamIds(account.accountName)}
-                      disabled={loading[account.accountName]}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        backgroundColor: '#1976d2',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      {loading[account.accountName] ? 'Updating...' : 'Update'}
-                    </button>
                   </div>
-                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.75rem', color: '#999' }}>
-                    Find team IDs in your Figma team URLs: figma.com/files/TEAM_ID/...
-                  </p>
-                </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
-      </div>
 
-      <div style={{ marginBottom: '2rem' }}>
-        <h2>How it works</h2>
-        <ul style={{ color: '#666', lineHeight: '1.8' }}>
-          <li>The digest runs automatically every 24 hours via cron job</li>
-          <li>It tracks file edits, comments, and version history across your configured teams</li>
-          <li>Activity is filtered to show only what's relevant to you</li>
-          <li>Summaries are posted to your configured Slack channel</li>
-        </ul>
-      </div>
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-figma-text mb-4">How it works</h2>
+            <ul className="space-y-2 text-sm text-figma-text-secondary">
+              <li className="flex items-start">
+                <span className="mr-2">•</span>
+                <span>The digest runs automatically every 24 hours via cron job</span>
+              </li>
+              <li className="flex items-start">
+                <span className="mr-2">•</span>
+                <span>It tracks file edits, comments, and version history across your configured teams</span>
+              </li>
+              <li className="flex items-start">
+                <span className="mr-2">•</span>
+                <span>Activity is filtered to show only what's relevant to you</span>
+              </li>
+              <li className="flex items-start">
+                <span className="mr-2">•</span>
+                <span>Summaries are posted to your configured Slack channel</span>
+              </li>
+            </ul>
+          </div>
 
-      <div style={{
-        padding: '1.5rem',
-        backgroundColor: '#f5f5f5',
-        borderRadius: '4px',
-        border: '1px solid #ddd',
-      }}>
-        <h3 style={{ margin: '0 0 0.5rem 0' }}>Manual Digest</h3>
-        <p style={{ margin: '0.5rem 0', color: '#666', fontSize: '0.9rem' }}>
-          Test the digest manually: <a href="/api/run-figma-digest" target="_blank" style={{ color: '#1976d2' }}>/api/run-figma-digest</a>
-        </p>
-      </div>
+          <div className="bg-figma-panel border border-figma-border rounded-lg p-6">
+            <h3 className="text-base font-semibold text-figma-text mb-2">Manual Digest</h3>
+            <p className="text-sm text-figma-text-secondary">
+              Test the digest manually:{' '}
+              <a 
+                href="/api/run-figma-digest" 
+                target="_blank" 
+                className="text-figma-primary hover:underline"
+              >
+                /api/run-figma-digest
+              </a>
+            </p>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

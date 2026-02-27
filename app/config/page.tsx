@@ -11,20 +11,19 @@ export default async function ConfigPage() {
     redirect('/auth/signin');
   }
 
-  // Get user's connected accounts
   const storage = new Storage(process.env.ENCRYPTION_KEY!);
   const accounts = await storage.getUserAccounts(session.user.email);
 
   const connectedAccounts = accounts.map(account => ({
     accountName: account.accountName,
-    email: account.accountName, // Account name is now the Figma email
+    email: account.accountName,
     createdAt: account.createdAt,
     updatedAt: account.updatedAt,
     teamIds: account.teamIds || [],
   }));
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem' }}>
+    <div className="min-h-screen bg-figma-bg">
       <ConfigInterface
         accounts={connectedAccounts}
         userEmail={session.user.email}

@@ -6,42 +6,28 @@ import Link from 'next/link';
 export default async function Home() {
   const session = await getServerSession(authOptions);
 
-  // If already signed in, redirect to config
   if (session?.user) {
     redirect('/config');
   }
 
-  // Otherwise show landing page with sign-in link
   return (
-    <main style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      padding: '2rem',
-      textAlign: 'center',
-    }}>
-      <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>
-        Figma Activity Aggregator
-      </h1>
-      <p style={{ fontSize: '1.25rem', color: '#666', marginBottom: '2rem', maxWidth: '600px' }}>
-        Track activity across all your Figma teams and get daily digests delivered to Slack
-      </p>
-      <Link
-        href="/auth/signin"
-        style={{
-          padding: '1rem 2rem',
-          backgroundColor: '#000',
-          color: 'white',
-          textDecoration: 'none',
-          borderRadius: '8px',
-          fontSize: '1.1rem',
-          fontWeight: '500',
-        }}
-      >
-        Get Started
-      </Link>
+    <main className="min-h-screen flex items-center justify-center bg-figma-bg">
+      <div className="text-center px-8 max-w-2xl">
+        <div className="mb-8">
+          <h1 className="text-5xl font-semibold mb-4 text-figma-text">
+            Figma Activity Aggregator
+          </h1>
+          <p className="text-lg text-figma-text-secondary leading-relaxed">
+            Track activity across all your Figma teams and get daily digests delivered to Slack
+          </p>
+        </div>
+        <Link
+          href="/auth/signin"
+          className="inline-block px-6 py-3 bg-figma-primary hover:bg-figma-primary-hover text-white font-medium rounded-lg transition-colors"
+        >
+          Get Started
+        </Link>
+      </div>
     </main>
   );
 }
