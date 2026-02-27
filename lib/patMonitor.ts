@@ -243,6 +243,11 @@ export class PATMonitor {
     // Check if the user object has an expiration field
     const userWithExpiration = figmaUser as any;
     
+    // Safely check for expiration fields
+    if (!userWithExpiration) {
+      return null;
+    }
+    
     // Common field names that might contain expiration info
     if (userWithExpiration.expires_at) {
       return userWithExpiration.expires_at;

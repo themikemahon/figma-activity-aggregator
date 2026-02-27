@@ -370,9 +370,9 @@ async function fetchAccountActivity(
     const teamIds: string[] = [];
     
     // Try to extract team IDs from various possible locations
-    if (userWithTeams.team_ids) {
+    if (userWithTeams?.team_ids) {
       teamIds.push(...userWithTeams.team_ids);
-    } else if (userWithTeams.teams) {
+    } else if (userWithTeams?.teams) {
       teamIds.push(...userWithTeams.teams.map((t: any) => t.id));
     }
     
@@ -382,11 +382,13 @@ async function fetchAccountActivity(
       teamIds.push(...configuredTeamIds.split(',').map(id => id.trim()));
     }
     
-    // If still no team IDs, log warning and return empty events
+    // If still no team IDs, log warning with helpful message and return empty events
     if (teamIds.length === 0) {
-      logger.warn('No team IDs found for account', {
+      logger.warn('No team IDs found for account - please configure FIGMA_TEAM_IDS environment variable', {
         operation: 'fetchAccountActivity',
         accountName,
+        envVarName: `FIGMA_TEAM_IDS_${accountName.toUpperCase()}`,
+        helpText: 'Set environment variable with comma-separated team IDs to enable activity tracking',
       });
       return events;
     }
