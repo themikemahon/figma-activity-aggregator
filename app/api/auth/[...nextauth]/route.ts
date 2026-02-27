@@ -20,10 +20,10 @@ const FigmaProvider = {
   clientSecret: process.env.FIGMA_CLIENT_SECRET,
   profile(profile: any) {
     return {
-      id: profile.id,
-      email: profile.email,
-      name: profile.handle,
-      image: profile.img_url,
+      id: String(profile.id),
+      email: profile.email || '',
+      name: profile.handle || '',
+      image: profile.img_url || null,
     };
   },
 };
@@ -42,12 +42,13 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, account, profile }) {
       // On initial sign-in, save OAuth tokens
       if (account && profile) {
+        const figmaProfile = profile as any;
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
-        token.figmaUserId = profile.id;
-        token.figmaEmail = profile.email;
-        token.figmaHandle = profile.handle;
+        token.figmaUserId = String(figmaProfile.id);
+        token.figmaEmail = figmaProfile.email || '';
+        token.figmaHandle = figmaProfile.handle || '';
         
         // Store OAuth tokens in database
         try {
@@ -55,8 +56,8 @@ export const authOptions: NextAuthOptions = {
           const now = new Date().toISOString();
           
           await storage.saveUserAccount({
-            userId: profile.email as string,
-            accountName: profile.handle as string,
+            userId: token.figmaEmail,
+            accountName: token.figmaHandle,
             encryptedPAT: storage.encryptPAT(account.access_token as string),
             teamIds: [], // Will be populated from Figma API
             createdAt: now,
