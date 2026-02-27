@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Storage } from '@/lib/storage';
 import { createLogger } from '@/lib/logger';
-import crypto from 'crypto';
 
 const logger = createLogger('FigmaWebhook');
 
@@ -11,18 +10,17 @@ const logger = createLogger('FigmaWebhook');
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify webhook signature
-    const signature = request.headers.get('x-figma-signature');
     const body = await request.text();
-    
-    if (!verifyWebhookSignature(body, signature)) {
-      logger.warn('Invalid webhook signature', {
-        operation: 'POST',
-      });
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
-
     const event = JSON.parse(body);
+    
+    // Verify webhook passcode
+    if (!verifyWebhookPasscode(event.passcode)) {
+      logger.warn('Invalid webhook passcode', {
+        operation: 'POST',
+        receivedPasscode: event.passcode ? '***' : 'missing',
+      });
+      return NextResponse.json({ error: 'Invalid passcode' }, { status: 400 });
+    }
     
     logger.info('Webhook event received', {
       operation: 'POST',
@@ -49,22 +47,17 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Verify webhook signature from Figma
+ * Verify webhook passcode from Figma
+ * Figma sends the passcode in the JSON body, not as an HMAC signature
  */
-function verifyWebhookSignature(body: string, signature: string | null): boolean {
-  if (!signature) return false;
-  
+function verifyWebhookPasscode(passcode: string | undefined): boolean {
   const webhookSecret = process.env.FIGMA_WEBHOOK_SECRET;
   if (!webhookSecret) {
     logger.warn('FIGMA_WEBHOOK_SECRET not configured');
     return true; // Allow in development
   }
 
-  const hmac = crypto.createHmac('sha256', webhookSecret);
-  hmac.update(body);
-  const expectedSignature = hmac.digest('hex');
-
-  return signature === expectedSignature;
+  return passcode === webhookSecret;
 }
 
 /**
