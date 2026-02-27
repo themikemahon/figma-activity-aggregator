@@ -291,8 +291,25 @@ export class FigmaClient {
    * Get user info and team IDs
    */
   async getMe(): Promise<FigmaUser> {
-    const response = await this.request<{ user: FigmaUser }>('/me');
-    return response.user;
+    const response = await this.request<any>('/me');
+    
+    // Log the raw response to see structure
+    logger.debug('Raw /me response', {
+      operation: 'getMe',
+      accountName: this.accountName,
+      response: JSON.stringify(response),
+      hasUser: !!response.user,
+      hasId: !!response.id,
+    });
+    
+    // The response might be { user: {...} } or just {...}
+    const user = response.user || response;
+    
+    if (!user || !user.id) {
+      throw new Error(`Invalid user response from Figma API: ${JSON.stringify(response)}`);
+    }
+    
+    return user;
   }
 
   /**
