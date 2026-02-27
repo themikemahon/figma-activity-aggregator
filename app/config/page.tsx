@@ -20,6 +20,7 @@ export default async function ConfigPage() {
     email: session.user.email,
     createdAt: account.createdAt,
     updatedAt: account.updatedAt,
+    teamIds: account.teamIds || [],
   }));
 
   return (
