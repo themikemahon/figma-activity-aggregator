@@ -55,14 +55,16 @@ export const authOptions: NextAuthOptions = {
           const storage = new Storage(process.env.ENCRYPTION_KEY!);
           const now = new Date().toISOString();
           
-          await storage.saveUserAccount({
-            userId: token.figmaEmail,
-            accountName: token.figmaHandle,
-            encryptedPAT: storage.encryptPAT(account.access_token as string),
-            teamIds: [], // Will be populated from Figma API
-            createdAt: now,
-            updatedAt: now,
-          });
+          if (token.figmaEmail && token.figmaHandle && account.access_token) {
+            await storage.saveUserAccount({
+              userId: token.figmaEmail,
+              accountName: token.figmaHandle,
+              encryptedPAT: storage.encryptPAT(account.access_token as string),
+              teamIds: [], // Will be populated from Figma API
+              createdAt: now,
+              updatedAt: now,
+            });
+          }
         } catch (error) {
           console.error('[Auth] Failed to store OAuth tokens:', error);
         }
