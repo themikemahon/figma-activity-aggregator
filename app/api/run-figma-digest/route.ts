@@ -103,6 +103,9 @@ export async function GET(request: NextRequest): Promise<NextResponse<DigestResp
     // Retrieve all user accounts
     const allAccounts = await storage.getAllUserAccounts();
     
+    // DEBUG: Log what we actually got from storage
+    console.log('[DIGEST DEBUG] Raw accounts from storage:', JSON.stringify(allAccounts, null, 2));
+    
     logger.info(`Found ${allAccounts.length} accounts to process`, {
       operation: 'GET',
       accountCount: allAccounts.length,
@@ -272,6 +275,17 @@ async function processAccount(
   storage: Storage
 ): Promise<AccountResult> {
   const { userId, accountName, encryptedPAT, teamIds } = account;
+  
+  // DEBUG: Log the account object we received
+  console.log('[PROCESS ACCOUNT DEBUG] Account object:', JSON.stringify({
+    userId,
+    accountName,
+    hasEncryptedPAT: !!encryptedPAT,
+    teamIds,
+    teamIdsType: typeof teamIds,
+    teamIdsIsArray: Array.isArray(teamIds),
+    fullAccount: account,
+  }, null, 2));
   
   logger.debug('Processing account', {
     operation: 'processAccount',
