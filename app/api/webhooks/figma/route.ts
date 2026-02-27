@@ -22,15 +22,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid passcode' }, { status: 400 });
     }
     
+    // Look up team ID from webhook subscription
+    const storage = new Storage(process.env.ENCRYPTION_KEY!);
+    const subscription = await storage.getWebhookSubscription(event.webhook_id);
+    
+    if (!subscription) {
+      logger.warn('Webhook subscription not found', {
+        operation: 'POST',
+        webhookId: event.webhook_id,
+      });
+      return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });
+    }
+    
     logger.info('Webhook event received', {
       operation: 'POST',
       eventType: event.event_type,
       fileKey: event.file_key,
-      teamId: event.team_id,
+      webhookId: event.webhook_id,
+      teamId: subscription.teamId,
     });
 
     // Store the event for processing in daily digest
-    await storeWebhookEvent(event);
+    await storeWebhookEvent(event, subscription.teamId);
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -63,7 +76,7 @@ function verifyWebhookPasscode(passcode: string | undefined): boolean {
 /**
  * Store webhook event for later processing
  */
-async function storeWebhookEvent(event: any) {
+async function storeWebhookEvent(event: any, teamId: string) {
   const storage = new Storage(process.env.ENCRYPTION_KEY!);
   const timestamp = new Date().toISOString();
   
@@ -75,7 +88,7 @@ async function storeWebhookEvent(event: any) {
     eventType: event.event_type,
     fileKey: event.file_key,
     fileName: event.file_name,
-    teamId: event.team_id,
+    teamId, // Use the team ID from the webhook subscription
     triggeredBy: event.triggered_by,
     timestamp,
     rawEvent: event,
@@ -85,5 +98,6 @@ async function storeWebhookEvent(event: any) {
     operation: 'storeWebhookEvent',
     eventKey,
     fileKey: event.file_key,
+    teamId,
   });
 }

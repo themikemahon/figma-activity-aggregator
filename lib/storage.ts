@@ -409,6 +409,25 @@ export class Storage {
   }
 
   /**
+   * Get webhook subscription by webhook ID
+   */
+  async getWebhookSubscription(webhookId: string): Promise<{
+    webhookId: string;
+    teamId: string;
+    userId: string;
+    accountName: string;
+    createdAt: string;
+  } | null> {
+    const data = await kv.get(`webhook:subscription:${webhookId}`);
+    if (!data) return null;
+    
+    if (typeof data === 'string') {
+      return JSON.parse(data);
+    }
+    return data as any;
+  }
+
+  /**
    * Get user's webhook subscriptions
    */
   async getUserWebhooks(userId: string): Promise<any[]> {
