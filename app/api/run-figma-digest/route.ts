@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Storage } from '@/lib/storage';
-import { FigmaClient, FigmaAPIError } from '@/lib/figmaClient';
+import { FigmaClient, FigmaAPIError, FigmaUser } from '@/lib/figmaClient';
 import { ActivityNormalizer, ActivityEvent } from '@/lib/activity';
 import { SummaryGenerator } from '@/lib/summary';
 import { SlackPoster } from '@/lib/slack';
@@ -289,6 +289,17 @@ async function processAccount(
       accountName,
     });
     
+    // Get user info to know who we're filtering for
+    const figmaUser = await figmaClient.getMe();
+    
+    logger.info('Fetched Figma user info for filtering', {
+      operation: 'processAccount',
+      userId,
+      accountName,
+      figmaUserId: figmaUser.id,
+      figmaUserHandle: figmaUser.handle,
+    });
+    
     // Get last digest time (or default to 24 hours ago)
     const lastDigestTime = await storage.getLastDigestTime(userId, accountName);
     const since = lastDigestTime || getDefaultSinceTime();
@@ -301,23 +312,28 @@ async function processAccount(
     });
     
     // Fetch activity
-    const events = await fetchAccountActivity(
+    const allEvents = await fetchAccountActivity(
       figmaClient,
       accountName,
       since
     );
     
+    // Filter events to only those relevant to this user
+    const relevantEvents = filterEventsForUser(allEvents, figmaUser);
+    
     logger.info('Account processing completed', {
       operation: 'processAccount',
       userId,
       accountName,
-      eventsFound: events.length,
+      totalEvents: allEvents.length,
+      relevantEvents: relevantEvents.length,
+      filtered: allEvents.length - relevantEvents.length,
     });
     
     return {
       userId,
       accountName,
-      events,
+      events: relevantEvents,
     };
     
   } catch (error) {
@@ -573,4 +589,85 @@ function getDefaultSinceTime(): string {
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   return yesterday.toISOString();
+}
+
+/**
+ * Filter events to only those relevant to the specified user
+ * 
+ * An event is relevant if:
+ * - The user created the version/edit
+ * - The user made the comment
+ * - Someone commented on a file the user recently edited
+ * - Someone replied to the user's comment
+ */
+function filterEventsForUser(
+  events: ActivityEvent[],
+  figmaUser: { id: string; handle: string; email: string }
+): ActivityEvent[] {
+  logger.debug('Filtering events for user', {
+    operation: 'filterEventsForUser',
+    figmaUserId: figmaUser.id,
+    figmaUserHandle: figmaUser.handle,
+    totalEvents: events.length,
+  });
+  
+  // Track files the user has edited (for comment filtering)
+  const userEditedFiles = new Set<string>();
+  const userCommentIds = new Set<string>();
+  
+  // First pass: identify user's edits and comments
+  for (const event of events) {
+    if (event.userId === figmaUser.id) {
+      if (event.action === 'FILE_VERSION_CREATED') {
+        userEditedFiles.add(event.fileKey);
+      } else if (event.action === 'COMMENT_ADDED') {
+        // Store comment ID from metadata if available
+        if (event.metadata?.commentId) {
+          userCommentIds.add(event.metadata.commentId);
+        }
+      }
+    }
+  }
+  
+  logger.debug('User activity summary', {
+    operation: 'filterEventsForUser',
+    userEditedFiles: userEditedFiles.size,
+    userComments: userCommentIds.size,
+  });
+  
+  // Second pass: filter events
+  const relevantEvents = events.filter(event => {
+    // Include if user created the version
+    if (event.action === 'FILE_VERSION_CREATED' && event.userId === figmaUser.id) {
+      return true;
+    }
+    
+    // Include if user made the comment
+    if (event.action === 'COMMENT_ADDED' && event.userId === figmaUser.id) {
+      return true;
+    }
+    
+    // Include if someone commented on a file the user edited
+    if (event.action === 'COMMENT_ADDED' && userEditedFiles.has(event.fileKey)) {
+      return true;
+    }
+    
+    // Include if someone replied to the user's comment
+    if (event.action === 'COMMENT_ADDED' && event.metadata?.parentId) {
+      if (userCommentIds.has(event.metadata.parentId)) {
+        return true;
+      }
+    }
+    
+    return false;
+  });
+  
+  logger.info('Event filtering completed', {
+    operation: 'filterEventsForUser',
+    totalEvents: events.length,
+    relevantEvents: relevantEvents.length,
+    filtered: events.length - relevantEvents.length,
+  });
+  
+  return relevantEvents;
 }
