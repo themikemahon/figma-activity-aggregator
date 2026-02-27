@@ -362,7 +362,7 @@ async function fetchAccountActivity(
 ): Promise<ActivityEvent[]> {
   const events: ActivityEvent[] = [];
   
-  if (!teamIds || teamIds.length === 0) {
+  if (!teamIds || !Array.isArray(teamIds) || teamIds.length === 0) {
     logger.warn('No team IDs configured for account', {
       operation: 'fetchAccountActivity',
       accountName,
