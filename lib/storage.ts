@@ -197,9 +197,14 @@ export class Storage {
       if (encryptedPAT && createdAt && updatedAt) {
         let teamIds = teamIdsJson ? JSON.parse(teamIdsJson) : undefined;
         
-        // Ensure teamIds is always an array if it exists
-        if (teamIds !== undefined && !Array.isArray(teamIds)) {
-          teamIds = [teamIds];
+        // Ensure teamIds is always an array of strings to preserve precision
+        if (teamIds !== undefined) {
+          if (!Array.isArray(teamIds)) {
+            teamIds = [String(teamIds)];
+          } else {
+            // Convert all team IDs to strings to preserve precision
+            teamIds = teamIds.map((id: any) => String(id));
+          }
         }
         
         accounts.push({
