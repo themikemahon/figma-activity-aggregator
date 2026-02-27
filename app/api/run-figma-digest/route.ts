@@ -289,30 +289,6 @@ async function processAccount(
       accountName,
     });
     
-    // Get user info to know who we're filtering for
-    const figmaUser = await figmaClient.getMe();
-    
-    logger.debug('Raw Figma user response', {
-      operation: 'processAccount',
-      userId,
-      accountName,
-      figmaUser: JSON.stringify(figmaUser),
-      hasId: !!figmaUser?.id,
-      hasHandle: !!figmaUser?.handle,
-    });
-    
-    if (!figmaUser || !figmaUser.id) {
-      throw new Error(`Failed to fetch Figma user info - user object is invalid: ${JSON.stringify(figmaUser)}`);
-    }
-    
-    logger.info('Fetched Figma user info for filtering', {
-      operation: 'processAccount',
-      userId,
-      accountName,
-      figmaUserId: figmaUser.id,
-      figmaUserHandle: figmaUser.handle,
-    });
-    
     // Get last digest time (or default to 24 hours ago)
     const lastDigestTime = await storage.getLastDigestTime(userId, accountName);
     const since = lastDigestTime || getDefaultSinceTime();
@@ -325,28 +301,23 @@ async function processAccount(
     });
     
     // Fetch activity
-    const allEvents = await fetchAccountActivity(
+    const events = await fetchAccountActivity(
       figmaClient,
       accountName,
       since
     );
     
-    // Filter events to only those relevant to this user
-    const relevantEvents = filterEventsForUser(allEvents, figmaUser);
-    
     logger.info('Account processing completed', {
       operation: 'processAccount',
       userId,
       accountName,
-      totalEvents: allEvents.length,
-      relevantEvents: relevantEvents.length,
-      filtered: allEvents.length - relevantEvents.length,
+      eventsFound: events.length,
     });
     
     return {
       userId,
       accountName,
-      events: relevantEvents,
+      events,
     };
     
   } catch (error) {
@@ -382,220 +353,14 @@ async function fetchAccountActivity(
 ): Promise<ActivityEvent[]> {
   const events: ActivityEvent[] = [];
   
-  logger.debug('Fetching account activity', {
+  logger.warn('Team-based activity tracking requires configuration', {
     operation: 'fetchAccountActivity',
     accountName,
-    since,
+    message: 'Figma API does not provide automatic team discovery. Team IDs must be configured.',
   });
   
-  try {
-    // Strategy: Use recent files to discover teams and projects automatically
-    // No configuration needed - just works with the user's PAT
-    logger.debug('Fetching recent files to discover teams', {
-      operation: 'fetchAccountActivity',
-      accountName,
-    });
-    
-    const recentFiles = await figmaClient.getRecentFiles();
-    
-    logger.info(`Found ${recentFiles.length} recent files`, {
-      operation: 'fetchAccountActivity',
-      accountName,
-      fileCount: recentFiles.length,
-    });
-    
-    // Extract unique team IDs from recent files
-    // Recent files response includes team information
-    const teamIds = new Set<string>();
-    const filesByTeam = new Map<string, FigmaFile[]>();
-    
-    for (const file of recentFiles) {
-      // Recent files API returns files with team context
-      const fileWithTeam = file as any;
-      if (fileWithTeam.team_id) {
-        teamIds.add(fileWithTeam.team_id);
-        if (!filesByTeam.has(fileWithTeam.team_id)) {
-          filesByTeam.set(fileWithTeam.team_id, []);
-        }
-        filesByTeam.get(fileWithTeam.team_id)!.push(file);
-      }
-    }
-    
-    logger.info(`Discovered ${teamIds.size} teams from recent files`, {
-      operation: 'fetchAccountActivity',
-      accountName,
-      teamCount: teamIds.size,
-    });
-    
-    // Process each discovered team
-    for (const teamId of teamIds) {
-      try {
-        logger.debug('Fetching projects for team', {
-          operation: 'fetchAccountActivity',
-          accountName,
-          teamId,
-        });
-        
-        // Fetch projects for this team
-        const projects = await figmaClient.listTeamProjects(teamId);
-        
-        logger.debug(`Found ${projects.length} projects in team`, {
-          operation: 'fetchAccountActivity',
-          accountName,
-          teamId,
-          projectCount: projects.length,
-        });
-        
-        // Process each project
-        for (const project of projects) {
-          try {
-            // Fetch files in this project
-            const files = await figmaClient.listProjectFiles(project.id);
-            
-            logger.debug(`Found ${files.length} files in project`, {
-              operation: 'fetchAccountActivity',
-              accountName,
-              projectId: project.id,
-              projectName: project.name,
-              fileCount: files.length,
-            });
-            
-            // Process each file
-            for (const file of files) {
-              try {
-                // Check if file was modified since last digest
-                const fileModifiedDate = new Date(file.last_modified);
-                const sinceDate = new Date(since);
-                
-                if (fileModifiedDate <= sinceDate) {
-                  // Skip files that haven't been modified since last digest
-                  logger.debug('Skipping file - not modified since last digest', {
-                    operation: 'fetchAccountActivity',
-                    accountName,
-                    fileKey: file.key,
-                    fileName: file.name,
-                    lastModified: file.last_modified,
-                    since,
-                  });
-                  continue;
-                }
-                
-                logger.debug('Processing file', {
-                  operation: 'fetchAccountActivity',
-                  accountName,
-                  fileKey: file.key,
-                  fileName: file.name,
-                  lastModified: file.last_modified,
-                });
-                
-                // Fetch versions since last digest
-                const versions = await figmaClient.listFileVersions(file.key, { since });
-                
-                logger.debug(`Found ${versions.length} versions for file`, {
-                  operation: 'fetchAccountActivity',
-                  accountName,
-                  fileKey: file.key,
-                  versionCount: versions.length,
-                });
-                
-                // Normalize version events
-                for (const version of versions) {
-                  const event = ActivityNormalizer.normalizeVersion(
-                    version,
-                    file,
-                    project,
-                    accountName
-                  );
-                  events.push(event);
-                }
-                
-                // Fetch comments on this file
-                const comments = await figmaClient.listFileComments(file.key);
-                
-                // Filter comments by timestamp and normalize
-                let newComments = 0;
-                for (const comment of comments) {
-                  const commentDate = new Date(comment.created_at);
-                  
-                  if (commentDate > sinceDate) {
-                    const event = ActivityNormalizer.normalizeComment(
-                      comment,
-                      file,
-                      project,
-                      accountName
-                    );
-                    events.push(event);
-                    newComments++;
-                  }
-                }
-                
-                logger.debug(`Found ${newComments} new comments for file`, {
-                  operation: 'fetchAccountActivity',
-                  accountName,
-                  fileKey: file.key,
-                  newCommentCount: newComments,
-                });
-                
-              } catch (fileError) {
-                // Log file processing error but continue with other files
-                logger.partialFailure(
-                  'Error processing file',
-                  fileError instanceof Error ? fileError : new Error('Unknown error'),
-                  {
-                    operation: 'fetchAccountActivity',
-                    accountName,
-                    projectId: project.id,
-                    fileKey: file.key,
-                  }
-                );
-              }
-            }
-          } catch (projectError) {
-            // Log project processing error but continue with other projects
-            logger.partialFailure(
-              'Error processing project',
-              projectError instanceof Error ? projectError : new Error('Unknown error'),
-              {
-                operation: 'fetchAccountActivity',
-                accountName,
-                teamId,
-                projectId: project.id,
-              }
-            );
-          }
-        }
-      } catch (teamError) {
-        // Log team processing error but continue with other teams
-        logger.partialFailure(
-          'Error processing team',
-          teamError instanceof Error ? teamError : new Error('Unknown error'),
-          {
-            operation: 'fetchAccountActivity',
-            accountName,
-            teamId,
-          }
-        );
-      }
-    }
-    
-    logger.info('Activity fetching completed', {
-      operation: 'fetchAccountActivity',
-      accountName,
-      eventsFound: events.length,
-    });
-  } catch (error) {
-    // Log top-level error
-    logger.fatalError(
-      'Error fetching activity for account',
-      error instanceof Error ? error : new Error('Unknown error'),
-      {
-        operation: 'fetchAccountActivity',
-        accountName,
-      }
-    );
-    throw error;
-  }
-  
+  // For now, return empty events until team IDs are configured
+  // TODO: Add team ID configuration to account setup
   return events;
 }
 
