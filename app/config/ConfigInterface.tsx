@@ -21,6 +21,7 @@ export default function ConfigInterface({ initialAccounts, userEmail }: ConfigIn
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
   const [newPAT, setNewPAT] = useState('');
+  const [newTeamIds, setNewTeamIds] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,12 +33,19 @@ export default function ConfigInterface({ initialAccounts, userEmail }: ConfigIn
     setIsLoading(true);
 
     try {
+      // Parse team IDs from comma-separated string
+      const teamIds = newTeamIds
+        .split(',')
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+
       const response = await fetch('/api/config/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accountName: newAccountName,
           pat: newPAT,
+          teamIds: teamIds.length > 0 ? teamIds : undefined,
         }),
       });
 
@@ -50,6 +58,7 @@ export default function ConfigInterface({ initialAccounts, userEmail }: ConfigIn
       setSuccess(`Account "${newAccountName}" added successfully!`);
       setNewAccountName('');
       setNewPAT('');
+      setNewTeamIds('');
       setIsAddingAccount(false);
 
       // Refresh accounts list
@@ -293,6 +302,32 @@ export default function ConfigInterface({ initialAccounts, userEmail }: ConfigIn
                 </p>
               </div>
 
+              <div style={{ marginBottom: '1rem' }}>
+                <label htmlFor="teamIds" style={{ display: 'block', marginBottom: '0.5rem' }}>
+                  Team IDs (comma-separated)
+                </label>
+                <input
+                  id="teamIds"
+                  type="text"
+                  value={newTeamIds}
+                  onChange={(e) => setNewTeamIds(e.target.value)}
+                  placeholder="1234567890123456789, 9876543210987654321"
+                  disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    fontSize: '1rem',
+                  }}
+                />
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: '#666' }}>
+                  Find team IDs in Figma URLs: figma.com/files/team/[TEAM_ID]/...
+                  <br />
+                  Add multiple teams separated by commas to track activity across all of them.
+                </p>
+              </div>
+
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <button
                   type="submit"
@@ -315,6 +350,7 @@ export default function ConfigInterface({ initialAccounts, userEmail }: ConfigIn
                     setIsAddingAccount(false);
                     setNewAccountName('');
                     setNewPAT('');
+                    setNewTeamIds('');
                     setError(null);
                   }}
                   disabled={isLoading}

@@ -17,6 +17,7 @@ export interface UserAccount {
   userId: string;
   accountName: string;
   encryptedPAT: string;
+  teamIds?: string[];  // Figma team IDs to track
   createdAt: string;
   updatedAt: string;
   expiresAt?: string;  // PAT expiration date if known
@@ -63,6 +64,8 @@ export class Storage {
     userAccounts: (userId: string) => `user:${userId}:accounts`,
     accountPAT: (userId: string, accountName: string) => 
       `user:${userId}:account:${accountName}:pat`,
+    accountTeamIds: (userId: string, accountName: string) => 
+      `user:${userId}:account:${accountName}:teamIds`,
     accountExpires: (userId: string, accountName: string) => 
       `user:${userId}:account:${accountName}:expires`,
     accountLastDigest: (userId: string, accountName: string) => 
@@ -116,12 +119,13 @@ export class Storage {
    * Save or update a user account with encrypted PAT
    */
   async saveUserAccount(account: UserAccount): Promise<void> {
-    const { userId, accountName, encryptedPAT, createdAt, updatedAt, expiresAt } = account;
+    const { userId, accountName, encryptedPAT, teamIds, createdAt, updatedAt, expiresAt } = account;
 
     logger.info('Saving user account', {
       operation: 'saveUserAccount',
       userId,
       accountName,
+      hasTeamIds: !!teamIds && teamIds.length > 0,
     });
 
     try {
@@ -133,6 +137,11 @@ export class Storage {
 
       // Store encrypted PAT
       await kv.set(this.keys.accountPAT(userId, accountName), encryptedPAT);
+
+      // Store team IDs if provided
+      if (teamIds && teamIds.length > 0) {
+        await kv.set(this.keys.accountTeamIds(userId, accountName), JSON.stringify(teamIds));
+      }
 
       // Store timestamps
       await kv.set(this.keys.accountCreatedAt(userId, accountName), createdAt);
@@ -147,6 +156,7 @@ export class Storage {
         operation: 'saveUserAccount',
         userId,
         accountName,
+        teamIdsCount: teamIds?.length || 0,
       });
     } catch (error) {
       logger.fatalError(
@@ -176,15 +186,19 @@ export class Storage {
 
     for (const accountName of accountNames) {
       const encryptedPAT = await kv.get<string>(this.keys.accountPAT(userId, accountName));
+      const teamIdsJson = await kv.get<string>(this.keys.accountTeamIds(userId, accountName));
       const createdAt = await kv.get<string>(this.keys.accountCreatedAt(userId, accountName));
       const updatedAt = await kv.get<string>(this.keys.accountUpdatedAt(userId, accountName));
       const expiresAt = await kv.get<string>(this.keys.accountExpires(userId, accountName));
 
       if (encryptedPAT && createdAt && updatedAt) {
+        const teamIds = teamIdsJson ? JSON.parse(teamIdsJson) : undefined;
+        
         accounts.push({
           userId,
           accountName,
           encryptedPAT,
+          teamIds,
           createdAt,
           updatedAt,
           expiresAt: expiresAt || undefined,
@@ -231,6 +245,7 @@ export class Storage {
 
       // Delete all account data
       await kv.del(this.keys.accountPAT(userId, accountName));
+      await kv.del(this.keys.accountTeamIds(userId, accountName));
       await kv.del(this.keys.accountExpires(userId, accountName));
       await kv.del(this.keys.accountLastDigest(userId, accountName));
       await kv.del(this.keys.accountCreatedAt(userId, accountName));

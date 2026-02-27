@@ -271,12 +271,13 @@ async function processAccount(
   account: any,
   storage: Storage
 ): Promise<AccountResult> {
-  const { userId, accountName, encryptedPAT } = account;
+  const { userId, accountName, encryptedPAT, teamIds } = account;
   
   logger.debug('Processing account', {
     operation: 'processAccount',
     userId,
     accountName,
+    hasTeamIds: !!teamIds && teamIds.length > 0,
   });
   
   try {
@@ -289,6 +290,9 @@ async function processAccount(
       accountName,
     });
     
+    // Get user info for filtering
+    const figmaUser = await figmaClient.getMe();
+    
     // Get last digest time (or default to 24 hours ago)
     const lastDigestTime = await storage.getLastDigestTime(userId, accountName);
     const since = lastDigestTime || getDefaultSinceTime();
@@ -298,12 +302,15 @@ async function processAccount(
       userId,
       accountName,
       since,
+      figmaUserId: figmaUser.id,
     });
     
     // Fetch activity
     const events = await fetchAccountActivity(
       figmaClient,
+      figmaUser,
       accountName,
+      teamIds,
       since
     );
     
@@ -348,49 +355,123 @@ async function processAccount(
  */
 async function fetchAccountActivity(
   figmaClient: FigmaClient,
+  figmaUser: FigmaUser,
   accountName: string,
+  teamIds: string[] | undefined,
   since: string
 ): Promise<ActivityEvent[]> {
   const events: ActivityEvent[] = [];
   
-  try {
-    // Try to get user info and see if it contains team IDs
-    const userInfo = await figmaClient.getMe();
-    console.log('[Digest] User info retrieved:', JSON.stringify(userInfo, null, 2));
-    
-    // Check if user info contains team information
-    const userWithTeams = userInfo as any;
-    if (userWithTeams.teams || userWithTeams.team_ids) {
-      logger.info('Found team information in user response!', {
-        operation: 'fetchAccountActivity',
-        accountName,
-        teams: userWithTeams.teams,
-        teamIds: userWithTeams.team_ids,
-      });
-    } else {
-      logger.warn('No team information found in user response', {
-        operation: 'fetchAccountActivity',
-        accountName,
-        userInfoKeys: Object.keys(userInfo),
-      });
-    }
-  } catch (error) {
-    logger.warn('Failed to get user info', {
+  if (!teamIds || teamIds.length === 0) {
+    logger.warn('No team IDs configured for account', {
       operation: 'fetchAccountActivity',
       accountName,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      message: 'Please add team IDs to this account to enable activity tracking',
     });
+    return events;
   }
   
-  logger.warn('Team-based activity tracking requires configuration', {
+  logger.info(`Processing ${teamIds.length} team(s)`, {
     operation: 'fetchAccountActivity',
     accountName,
-    message: 'Figma API does not provide automatic team discovery. Team IDs must be configured.',
+    teamCount: teamIds.length,
   });
   
-  // For now, return empty events until team IDs are configured
-  // TODO: Add team ID configuration to account setup
-  return events;
+  // Process each team
+  for (const teamId of teamIds) {
+    try {
+      const projects = await figmaClient.listTeamProjects(teamId);
+      
+      for (const project of projects) {
+        try {
+          const files = await figmaClient.listProjectFiles(project.id);
+          
+          for (const file of files) {
+            try {
+              const fileModifiedDate = new Date(file.last_modified);
+              const sinceDate = new Date(since);
+              
+              if (fileModifiedDate <= sinceDate) {
+                continue;
+              }
+              
+              // Fetch versions
+              const versions = await figmaClient.listFileVersions(file.key, { since });
+              
+              for (const version of versions) {
+                const event = ActivityNormalizer.normalizeVersion(
+                  version,
+                  file,
+                  project,
+                  accountName
+                );
+                events.push(event);
+              }
+              
+              // Fetch comments
+              const comments = await figmaClient.listFileComments(file.key);
+              
+              for (const comment of comments) {
+                const commentDate = new Date(comment.created_at);
+                
+                if (commentDate > sinceDate) {
+                  const event = ActivityNormalizer.normalizeComment(
+                    comment,
+                    file,
+                    project,
+                    accountName
+                  );
+                  events.push(event);
+                }
+              }
+            } catch (fileError) {
+              logger.partialFailure(
+                'Error processing file',
+                fileError instanceof Error ? fileError : new Error('Unknown error'),
+                {
+                  operation: 'fetchAccountActivity',
+                  accountName,
+                  fileKey: file.key,
+                }
+              );
+            }
+          }
+        } catch (projectError) {
+          logger.partialFailure(
+            'Error processing project',
+            projectError instanceof Error ? projectError : new Error('Unknown error'),
+            {
+              operation: 'fetchAccountActivity',
+              accountName,
+              projectId: project.id,
+            }
+          );
+        }
+      }
+    } catch (teamError) {
+      logger.partialFailure(
+        'Error processing team',
+        teamError instanceof Error ? teamError : new Error('Unknown error'),
+        {
+          operation: 'fetchAccountActivity',
+          accountName,
+          teamId,
+        }
+      );
+    }
+  }
+  
+  // Filter events to only those relevant to this user
+  const relevantEvents = filterEventsForUser(events, figmaUser);
+  
+  logger.info('Activity fetching completed', {
+    operation: 'fetchAccountActivity',
+    accountName,
+    totalEvents: events.length,
+    relevantEvents: relevantEvents.length,
+  });
+  
+  return relevantEvents;
 }
 
 /**

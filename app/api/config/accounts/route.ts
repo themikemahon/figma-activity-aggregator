@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { accountName, pat } = body;
+    const { accountName, pat, teamIds } = body;
 
     // Use email as userId for JWT sessions
     const userId = session?.user?.email || 'unknown';
@@ -99,6 +99,7 @@ export async function POST(request: NextRequest) {
       operation: 'POST',
       userEmail: session?.user?.email,
       accountName,
+      hasTeamIds: !!teamIds && Array.isArray(teamIds) && teamIds.length > 0,
     });
 
     // Validate input
@@ -210,6 +211,7 @@ export async function POST(request: NextRequest) {
       userId,
       accountName,
       encryptedPAT,
+      teamIds: teamIds && Array.isArray(teamIds) ? teamIds : undefined,
       createdAt: now,
       updatedAt: now,
       expiresAt,
@@ -220,6 +222,7 @@ export async function POST(request: NextRequest) {
       userEmail: session.user.email,
       accountName,
       figmaUserId: figmaUser.id,
+      teamIdsCount: teamIds?.length || 0,
     });
 
     return NextResponse.json({
