@@ -293,13 +293,16 @@ export class FigmaClient {
   async getMe(): Promise<FigmaUser> {
     const response = await this.request<any>('/me');
     
-    // Log the raw response to see structure
+    // Log the COMPLETE raw response to see structure
+    console.log('[FigmaClient] FULL /me response:', JSON.stringify(response, null, 2));
+    
     logger.debug('Raw /me response', {
       operation: 'getMe',
       accountName: this.accountName,
-      response: JSON.stringify(response),
+      responseKeys: Object.keys(response || {}),
       hasUser: !!response.user,
       hasId: !!response.id,
+      hasTeams: !!(response.teams || response.team_ids),
     });
     
     // The response might be { user: {...} } or just {...}

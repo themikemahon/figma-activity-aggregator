@@ -353,6 +353,35 @@ async function fetchAccountActivity(
 ): Promise<ActivityEvent[]> {
   const events: ActivityEvent[] = [];
   
+  try {
+    // Try to get user info and see if it contains team IDs
+    const userInfo = await figmaClient.getMe();
+    console.log('[Digest] User info retrieved:', JSON.stringify(userInfo, null, 2));
+    
+    // Check if user info contains team information
+    const userWithTeams = userInfo as any;
+    if (userWithTeams.teams || userWithTeams.team_ids) {
+      logger.info('Found team information in user response!', {
+        operation: 'fetchAccountActivity',
+        accountName,
+        teams: userWithTeams.teams,
+        teamIds: userWithTeams.team_ids,
+      });
+    } else {
+      logger.warn('No team information found in user response', {
+        operation: 'fetchAccountActivity',
+        accountName,
+        userInfoKeys: Object.keys(userInfo),
+      });
+    }
+  } catch (error) {
+    logger.warn('Failed to get user info', {
+      operation: 'fetchAccountActivity',
+      accountName,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+  
   logger.warn('Team-based activity tracking requires configuration', {
     operation: 'fetchAccountActivity',
     accountName,
