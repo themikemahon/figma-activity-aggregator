@@ -306,25 +306,29 @@ export default function ConfigInterface({ initialAccounts, userEmail }: ConfigIn
                 <label htmlFor="teamIds" style={{ display: 'block', marginBottom: '0.5rem' }}>
                   Team IDs (comma-separated)
                 </label>
-                <input
+                <textarea
                   id="teamIds"
-                  type="text"
                   value={newTeamIds}
                   onChange={(e) => setNewTeamIds(e.target.value)}
                   placeholder="1234567890123456789, 9876543210987654321"
                   disabled={isLoading}
+                  rows={2}
                   style={{
                     width: '100%',
                     padding: '0.5rem',
                     border: '1px solid #ccc',
                     borderRadius: '4px',
                     fontSize: '1rem',
+                    fontFamily: 'monospace',
+                    resize: 'vertical',
                   }}
                 />
                 <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: '#666' }}>
                   Find team IDs in Figma URLs: figma.com/files/team/[TEAM_ID]/...
                   <br />
                   Add multiple teams separated by commas to track activity across all of them.
+                  <br />
+                  <strong>Important:</strong> Copy team IDs exactly as they appear in the URL to preserve precision.
                 </p>
               </div>
 
