@@ -17,7 +17,7 @@ export default async function ConfigPage() {
 
   const connectedAccounts = accounts.map(account => ({
     accountName: account.accountName,
-    email: session.user.email,
+    email: account.accountName, // Account name is now the Figma email
     createdAt: account.createdAt,
     updatedAt: account.updatedAt,
     teamIds: account.teamIds || [],
