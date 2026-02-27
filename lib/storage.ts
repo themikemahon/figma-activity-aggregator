@@ -216,19 +216,25 @@ export class Storage {
       });
 
       if (encryptedPAT && createdAt && updatedAt) {
-        // CRITICAL: Parse the double-stringified team IDs
-        // kv.get does one JSON.parse, we need to do another to get the array
+        // CRITICAL: Vercel KV already returns parsed data
+        // If it's already an array, don't parse again - just ensure strings
         let teamIds: string[] | undefined = undefined;
         if (teamIdsJson) {
           try {
-            // First parse gets us the JSON array string (done by kv.get automatically)
-            // Second parse gets us the actual array - but this is where precision is lost!
-            // So we need to manually parse to keep strings
-            const parsed = JSON.parse(teamIdsJson);
-            if (Array.isArray(parsed)) {
-              teamIds = parsed.map((id: any) => String(id));
+            if (Array.isArray(teamIdsJson)) {
+              // Already an array - just ensure all elements are strings
+              teamIds = teamIdsJson.map((id: any) => String(id));
+            } else if (typeof teamIdsJson === 'string') {
+              // It's a string, parse it
+              const parsed = JSON.parse(teamIdsJson);
+              if (Array.isArray(parsed)) {
+                teamIds = parsed.map((id: any) => String(id));
+              } else {
+                teamIds = [String(parsed)];
+              }
             } else {
-              teamIds = [String(parsed)];
+              // Single value
+              teamIds = [String(teamIdsJson)];
             }
             
             console.log('[STORAGE DEBUG] Parsed teamIds:', teamIds);
