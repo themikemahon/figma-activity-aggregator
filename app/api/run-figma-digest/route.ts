@@ -360,82 +360,186 @@ async function fetchAccountActivity(
   });
   
   try {
-    // Strategy: Use the user's recent files to discover activity
-    // This avoids needing to configure team IDs
-    logger.debug('Fetching recent files for user', {
+    // Get team IDs from environment variable
+    // Format: FIGMA_TEAM_IDS=team1,team2,team3 (applies to all accounts)
+    // Or: FIGMA_TEAM_IDS_ACCOUNTNAME=team1,team2 (specific to account)
+    const accountSpecificVar = process.env[`FIGMA_TEAM_IDS_${accountName.toUpperCase()}`];
+    const globalVar = process.env.FIGMA_TEAM_IDS;
+    
+    const teamIdsString = accountSpecificVar || globalVar;
+    
+    if (!teamIdsString) {
+      logger.warn('No team IDs configured - cannot fetch activity', {
+        operation: 'fetchAccountActivity',
+        accountName,
+        helpText: 'Set FIGMA_TEAM_IDS environment variable with comma-separated team IDs',
+        example: 'FIGMA_TEAM_IDS=123456789,987654321',
+      });
+      return events;
+    }
+    
+    const teamIds = teamIdsString.split(',').map(id => id.trim()).filter(id => id.length > 0);
+    
+    if (teamIds.length === 0) {
+      logger.warn('No valid team IDs found', {
+        operation: 'fetchAccountActivity',
+        accountName,
+      });
+      return events;
+    }
+    
+    logger.info(`Processing ${teamIds.length} team(s)`, {
       operation: 'fetchAccountActivity',
       accountName,
+      teamCount: teamIds.length,
     });
     
-    const recentFiles = await figmaClient.getRecentFiles();
-    
-    logger.info(`Found ${recentFiles.length} recent files`, {
-      operation: 'fetchAccountActivity',
-      accountName,
-      fileCount: recentFiles.length,
-    });
-    
-    // Process each file
-    for (const file of recentFiles) {
+    // Process each team
+    for (const teamId of teamIds) {
       try {
-        // Check if file was modified since last digest
-        const fileModifiedDate = new Date(file.last_modified);
-        const sinceDate = new Date(since);
-        
-        if (fileModifiedDate <= sinceDate) {
-          // Skip files that haven't been modified since last digest
-          continue;
-        }
-        
-        logger.debug('Processing file', {
+        logger.debug('Fetching projects for team', {
           operation: 'fetchAccountActivity',
           accountName,
-          fileKey: file.key,
-          fileName: file.name,
-          lastModified: file.last_modified,
+          teamId,
         });
         
-        // Fetch versions since last digest
-        const versions = await figmaClient.listFileVersions(file.key, { since });
+        // Fetch projects for this team
+        const projects = await figmaClient.listTeamProjects(teamId);
         
-        // Normalize version events
-        // Note: We don't have project info, so we'll use file name as context
-        for (const version of versions) {
-          const event = ActivityNormalizer.normalizeVersion(
-            version,
-            file,
-            { id: 'unknown', name: 'Recent Files' }, // Placeholder project
-            accountName
-          );
-          events.push(event);
-        }
+        logger.debug(`Found ${projects.length} projects in team`, {
+          operation: 'fetchAccountActivity',
+          accountName,
+          teamId,
+          projectCount: projects.length,
+        });
         
-        // Fetch comments on this file
-        const comments = await figmaClient.listFileComments(file.key);
-        
-        // Filter comments by timestamp and normalize
-        for (const comment of comments) {
-          const commentDate = new Date(comment.created_at);
-          
-          if (commentDate > sinceDate) {
-            const event = ActivityNormalizer.normalizeComment(
-              comment,
-              file,
-              { id: 'unknown', name: 'Recent Files' }, // Placeholder project
-              accountName
+        // Process each project
+        for (const project of projects) {
+          try {
+            // Fetch files in this project
+            const files = await figmaClient.listProjectFiles(project.id);
+            
+            logger.debug(`Found ${files.length} files in project`, {
+              operation: 'fetchAccountActivity',
+              accountName,
+              projectId: project.id,
+              projectName: project.name,
+              fileCount: files.length,
+            });
+            
+            // Process each file
+            for (const file of files) {
+              try {
+                // Check if file was modified since last digest
+                const fileModifiedDate = new Date(file.last_modified);
+                const sinceDate = new Date(since);
+                
+                if (fileModifiedDate <= sinceDate) {
+                  // Skip files that haven't been modified since last digest
+                  logger.debug('Skipping file - not modified since last digest', {
+                    operation: 'fetchAccountActivity',
+                    accountName,
+                    fileKey: file.key,
+                    fileName: file.name,
+                    lastModified: file.last_modified,
+                    since,
+                  });
+                  continue;
+                }
+                
+                logger.debug('Processing file', {
+                  operation: 'fetchAccountActivity',
+                  accountName,
+                  fileKey: file.key,
+                  fileName: file.name,
+                  lastModified: file.last_modified,
+                });
+                
+                // Fetch versions since last digest
+                const versions = await figmaClient.listFileVersions(file.key, { since });
+                
+                logger.debug(`Found ${versions.length} versions for file`, {
+                  operation: 'fetchAccountActivity',
+                  accountName,
+                  fileKey: file.key,
+                  versionCount: versions.length,
+                });
+                
+                // Normalize version events
+                for (const version of versions) {
+                  const event = ActivityNormalizer.normalizeVersion(
+                    version,
+                    file,
+                    project,
+                    accountName
+                  );
+                  events.push(event);
+                }
+                
+                // Fetch comments on this file
+                const comments = await figmaClient.listFileComments(file.key);
+                
+                // Filter comments by timestamp and normalize
+                let newComments = 0;
+                for (const comment of comments) {
+                  const commentDate = new Date(comment.created_at);
+                  
+                  if (commentDate > sinceDate) {
+                    const event = ActivityNormalizer.normalizeComment(
+                      comment,
+                      file,
+                      project,
+                      accountName
+                    );
+                    events.push(event);
+                    newComments++;
+                  }
+                }
+                
+                logger.debug(`Found ${newComments} new comments for file`, {
+                  operation: 'fetchAccountActivity',
+                  accountName,
+                  fileKey: file.key,
+                  newCommentCount: newComments,
+                });
+                
+              } catch (fileError) {
+                // Log file processing error but continue with other files
+                logger.partialFailure(
+                  'Error processing file',
+                  fileError instanceof Error ? fileError : new Error('Unknown error'),
+                  {
+                    operation: 'fetchAccountActivity',
+                    accountName,
+                    projectId: project.id,
+                    fileKey: file.key,
+                  }
+                );
+              }
+            }
+          } catch (projectError) {
+            // Log project processing error but continue with other projects
+            logger.partialFailure(
+              'Error processing project',
+              projectError instanceof Error ? projectError : new Error('Unknown error'),
+              {
+                operation: 'fetchAccountActivity',
+                accountName,
+                teamId,
+                projectId: project.id,
+              }
             );
-            events.push(event);
           }
         }
-      } catch (fileError) {
-        // Log file processing error but continue with other files
+      } catch (teamError) {
+        // Log team processing error but continue with other teams
         logger.partialFailure(
-          'Error processing file',
-          fileError instanceof Error ? fileError : new Error('Unknown error'),
+          'Error processing team',
+          teamError instanceof Error ? teamError : new Error('Unknown error'),
           {
             operation: 'fetchAccountActivity',
             accountName,
-            fileKey: file.key,
+            teamId,
           }
         );
       }
