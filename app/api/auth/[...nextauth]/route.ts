@@ -14,8 +14,39 @@ const FigmaProvider = {
       response_type: 'code',
     },
   },
-  token: 'https://api.figma.com/v1/oauth/token',
-  userinfo: 'https://api.figma.com/v1/me',
+  token: {
+    url: 'https://api.figma.com/v1/oauth/token',
+    async request(context: any) {
+      const response = await fetch('https://api.figma.com/v1/oauth/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: context.provider.clientId,
+          client_secret: context.provider.clientSecret,
+          code: context.params.code,
+          redirect_uri: context.provider.callbackUrl,
+          grant_type: 'authorization_code',
+        }),
+      });
+      
+      const tokens = await response.json();
+      return { tokens };
+    },
+  },
+  userinfo: {
+    url: 'https://api.figma.com/v1/me',
+    async request(context: any) {
+      const response = await fetch('https://api.figma.com/v1/me', {
+        headers: {
+          Authorization: `Bearer ${context.tokens.access_token}`,
+        },
+      });
+      
+      return await response.json();
+    },
+  },
   clientId: process.env.FIGMA_CLIENT_ID,
   clientSecret: process.env.FIGMA_CLIENT_SECRET,
   profile(profile: any) {
