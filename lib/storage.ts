@@ -347,3 +347,90 @@ export class Storage {
     await kv.set(this.keys.accountLastDigest(userId, accountName), timestamp);
   }
 }
+
+  /**
+   * Store webhook event
+   */
+  async storeWebhookEvent(event: {
+    key: string;
+    eventType: string;
+    fileKey: string;
+    fileName: string;
+    teamId: string;
+    triggeredBy: any;
+    timestamp: string;
+    rawEvent: any;
+  }): Promise<void> {
+    // Store with 7 day TTL
+    await kv.set(event.key, JSON.stringify(event), { ex: 7 * 24 * 60 * 60 });
+    
+    // Add to daily events set
+    const dateKey = event.timestamp.split('T')[0]; // YYYY-MM-DD
+    await kv.sadd(`webhook:events:${dateKey}`, event.key);
+    await kv.expire(`webhook:events:${dateKey}`, 8 * 24 * 60 * 60); // 8 days TTL
+  }
+
+  /**
+   * Get webhook events for a specific date
+   */
+  async getWebhookEvents(date: string): Promise<any[]> {
+    const eventKeys = await kv.smembers(`webhook:events:${date}`);
+    const events = [];
+    
+    for (const key of eventKeys) {
+      const eventData = await kv.get(key);
+      if (eventData) {
+        events.push(typeof eventData === 'string' ? JSON.parse(eventData) : eventData);
+      }
+    }
+    
+    return events;
+  }
+
+  /**
+   * Store webhook subscription
+   */
+  async storeWebhookSubscription(subscription: {
+    webhookId: string;
+    teamId: string;
+    userId: string;
+    accountName: string;
+    createdAt: string;
+  }): Promise<void> {
+    await kv.set(
+      `webhook:subscription:${subscription.webhookId}`,
+      JSON.stringify(subscription)
+    );
+    
+    // Track subscriptions by user
+    await kv.sadd(
+      `user:${subscription.userId}:webhooks`,
+      subscription.webhookId
+    );
+  }
+
+  /**
+   * Get user's webhook subscriptions
+   */
+  async getUserWebhooks(userId: string): Promise<any[]> {
+    const webhookIds = await kv.smembers(`user:${userId}:webhooks`);
+    const webhooks = [];
+    
+    for (const id of webhookIds) {
+      const webhook = await kv.get(`webhook:subscription:${id}`);
+      if (webhook) {
+        webhooks.push(typeof webhook === 'string' ? JSON.parse(webhook) : webhook);
+      }
+    }
+    
+    return webhooks;
+  }
+
+  /**
+   * Delete webhook subscription
+   */
+  async deleteWebhookSubscription(webhookId: string, userId: string): Promise<void> {
+    await kv.del(`webhook:subscription:${webhookId}`);
+    await kv.srem(`user:${userId}:webhooks`, webhookId);
+  }
+}
