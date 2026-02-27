@@ -115,7 +115,22 @@ export default function ConfigInterface({ accounts, userEmail, userName }: Confi
       )}
 
       <div style={{ marginBottom: '2rem' }}>
-        <h2>Connected Accounts</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h2 style={{ margin: 0 }}>Connected Accounts</h2>
+          <a
+            href="/api/link-figma-account"
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#1976d2',
+              color: 'white',
+              textDecoration: 'none',
+              borderRadius: '4px',
+              fontSize: '0.9rem',
+            }}
+          >
+            + Link Another Figma Account
+          </a>
+        </div>
         {accounts.length === 0 ? (
           <p style={{ color: '#666' }}>No accounts connected.</p>
         ) : (
