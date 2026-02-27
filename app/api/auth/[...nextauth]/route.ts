@@ -89,7 +89,7 @@ export const authOptions: NextAuthOptions = {
           if (token.figmaEmail && token.figmaHandle && account.access_token) {
             await storage.saveUserAccount({
               userId: token.figmaEmail,
-              accountName: token.figmaHandle,
+              accountName: token.figmaEmail, // Use email for uniqueness
               encryptedPAT: storage.encryptPAT(account.access_token as string),
               teamIds: [], // Will be populated from Figma API
               createdAt: now,
@@ -127,7 +127,7 @@ export const authOptions: NextAuthOptions = {
             try {
               const storage = new Storage(process.env.ENCRYPTION_KEY!);
               const accounts = await storage.getUserAccounts(token.figmaEmail as string);
-              const account = accounts.find(a => a.accountName === token.figmaHandle);
+              const account = accounts.find(a => a.accountName === token.figmaEmail);
               
               if (account) {
                 await storage.saveUserAccount({

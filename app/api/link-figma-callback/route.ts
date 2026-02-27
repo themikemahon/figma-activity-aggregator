@@ -72,13 +72,13 @@ export async function GET(request: NextRequest) {
 
     const figmaUser = await userResponse.json();
 
-    // Store the linked account
+    // Store the linked account - use email as account name to ensure uniqueness
     const storage = new Storage(process.env.ENCRYPTION_KEY!);
     const now = new Date().toISOString();
 
     await storage.saveUserAccount({
       userId: primaryUserEmail, // Link to primary user
-      accountName: figmaUser.handle || figmaUser.email,
+      accountName: figmaUser.email || figmaUser.handle, // Use email for uniqueness
       encryptedPAT: storage.encryptPAT(tokens.access_token),
       teamIds: [], // Will be configured later
       createdAt: now,
