@@ -343,6 +343,15 @@ export class FigmaClient {
   }
 
   /**
+   * Get user's recent files (discovers teams automatically)
+   */
+  async getRecentFiles(): Promise<FigmaFile[]> {
+    const response = await this.request<{ files: FigmaFile[] }>('/files/recent');
+    return response.files || [];
+  }
+
+
+  /**
    * Get file metadata
    */
   async getFileMeta(fileKey: string): Promise<FigmaFileMeta> {

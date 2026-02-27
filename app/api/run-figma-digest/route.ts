@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Storage } from '@/lib/storage';
-import { FigmaClient, FigmaAPIError, FigmaUser } from '@/lib/figmaClient';
+import { FigmaClient, FigmaAPIError, FigmaUser, FigmaFile } from '@/lib/figmaClient';
 import { ActivityNormalizer, ActivityEvent } from '@/lib/activity';
 import { SummaryGenerator } from '@/lib/summary';
 import { SlackPoster } from '@/lib/slack';
@@ -376,41 +376,45 @@ async function fetchAccountActivity(
   });
   
   try {
-    // Get team IDs from environment variable
-    // Format: FIGMA_TEAM_IDS=team1,team2,team3 (applies to all accounts)
-    // Or: FIGMA_TEAM_IDS_ACCOUNTNAME=team1,team2 (specific to account)
-    const accountSpecificVar = process.env[`FIGMA_TEAM_IDS_${accountName.toUpperCase()}`];
-    const globalVar = process.env.FIGMA_TEAM_IDS;
-    
-    const teamIdsString = accountSpecificVar || globalVar;
-    
-    if (!teamIdsString) {
-      logger.warn('No team IDs configured - cannot fetch activity', {
-        operation: 'fetchAccountActivity',
-        accountName,
-        helpText: 'Set FIGMA_TEAM_IDS environment variable with comma-separated team IDs',
-        example: 'FIGMA_TEAM_IDS=123456789,987654321',
-      });
-      return events;
-    }
-    
-    const teamIds = teamIdsString.split(',').map(id => id.trim()).filter(id => id.length > 0);
-    
-    if (teamIds.length === 0) {
-      logger.warn('No valid team IDs found', {
-        operation: 'fetchAccountActivity',
-        accountName,
-      });
-      return events;
-    }
-    
-    logger.info(`Processing ${teamIds.length} team(s)`, {
+    // Strategy: Use recent files to discover teams and projects automatically
+    // No configuration needed - just works with the user's PAT
+    logger.debug('Fetching recent files to discover teams', {
       operation: 'fetchAccountActivity',
       accountName,
-      teamCount: teamIds.length,
     });
     
-    // Process each team
+    const recentFiles = await figmaClient.getRecentFiles();
+    
+    logger.info(`Found ${recentFiles.length} recent files`, {
+      operation: 'fetchAccountActivity',
+      accountName,
+      fileCount: recentFiles.length,
+    });
+    
+    // Extract unique team IDs from recent files
+    // Recent files response includes team information
+    const teamIds = new Set<string>();
+    const filesByTeam = new Map<string, FigmaFile[]>();
+    
+    for (const file of recentFiles) {
+      // Recent files API returns files with team context
+      const fileWithTeam = file as any;
+      if (fileWithTeam.team_id) {
+        teamIds.add(fileWithTeam.team_id);
+        if (!filesByTeam.has(fileWithTeam.team_id)) {
+          filesByTeam.set(fileWithTeam.team_id, []);
+        }
+        filesByTeam.get(fileWithTeam.team_id)!.push(file);
+      }
+    }
+    
+    logger.info(`Discovered ${teamIds.size} teams from recent files`, {
+      operation: 'fetchAccountActivity',
+      accountName,
+      teamCount: teamIds.size,
+    });
+    
+    // Process each discovered team
     for (const teamId of teamIds) {
       try {
         logger.debug('Fetching projects for team', {
