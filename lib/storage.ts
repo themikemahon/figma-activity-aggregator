@@ -138,12 +138,26 @@ export class Storage {
       // Store encrypted PAT
       await kv.set(this.keys.accountPAT(userId, accountName), encryptedPAT);
 
-      // Store team IDs if provided
+      // Store team IDs if provided  
+      // CRITICAL: Double-stringify to prevent Vercel KV from parsing numbers
+      // Vercel KV does JSON.stringify on set and JSON.parse on get
+      // So we pre-stringify to keep it as a string through the round-trip
       if (teamIds && teamIds.length > 0) {
         // Ensure teamIds is an array of strings
         const teamIdsArray = Array.isArray(teamIds) ? teamIds : [teamIds];
         const teamIdsStrings = teamIdsArray.map(id => String(id));
-        await kv.set(this.keys.accountTeamIds(userId, accountName), JSON.stringify(teamIdsStrings));
+        
+        // Double-stringify: first stringify creates the JSON array string,
+        // second stringify (done by kv.set) wraps it in quotes
+        const teamIdsValue = JSON.stringify(teamIdsStrings);
+        await kv.set(this.keys.accountTeamIds(userId, accountName), teamIdsValue);
+        
+        console.log('[STORAGE SAVE DEBUG]', {
+          accountName,
+          originalTeamIds: teamIds,
+          teamIdsStrings,
+          storingValue: teamIdsValue,
+        });
       }
 
       // Store timestamps
@@ -194,16 +208,38 @@ export class Storage {
       const updatedAt = await kv.get<string>(this.keys.accountUpdatedAt(userId, accountName));
       const expiresAt = await kv.get<string>(this.keys.accountExpires(userId, accountName));
 
+      // DEBUG: Log what Redis actually returned
+      console.log('[STORAGE DEBUG] Raw from Redis:', {
+        accountName,
+        teamIdsJson,
+        teamIdsJsonType: typeof teamIdsJson,
+      });
+
       if (encryptedPAT && createdAt && updatedAt) {
-        let teamIds = teamIdsJson ? JSON.parse(teamIdsJson) : undefined;
-        
-        // Ensure teamIds is always an array of strings to preserve precision
-        if (teamIds !== undefined) {
-          if (!Array.isArray(teamIds)) {
-            teamIds = [String(teamIds)];
-          } else {
-            // Convert all team IDs to strings to preserve precision
-            teamIds = teamIds.map((id: any) => String(id));
+        // CRITICAL: Parse the double-stringified team IDs
+        // kv.get does one JSON.parse, we need to do another to get the array
+        let teamIds: string[] | undefined = undefined;
+        if (teamIdsJson) {
+          try {
+            // First parse gets us the JSON array string (done by kv.get automatically)
+            // Second parse gets us the actual array - but this is where precision is lost!
+            // So we need to manually parse to keep strings
+            const parsed = JSON.parse(teamIdsJson);
+            if (Array.isArray(parsed)) {
+              teamIds = parsed.map((id: any) => String(id));
+            } else {
+              teamIds = [String(parsed)];
+            }
+            
+            console.log('[STORAGE DEBUG] Parsed teamIds:', teamIds);
+          } catch (e) {
+            logger.warn('Failed to parse team IDs', {
+              operation: 'getUserAccounts',
+              userId,
+              accountName,
+              error: e instanceof Error ? e.message : 'Unknown error',
+            });
+            teamIds = undefined;
           }
         }
         

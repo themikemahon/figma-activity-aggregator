@@ -34,10 +34,12 @@ export default function ConfigInterface({ initialAccounts, userEmail }: ConfigIn
 
     try {
       // Parse team IDs from comma-separated string
+      // CRITICAL: Keep as strings to preserve precision for large integers
       const teamIds = newTeamIds
         .split(',')
         .map(id => id.trim())
-        .filter(id => id.length > 0);
+        .filter(id => id.length > 0)
+        .map(id => String(id)); // Explicitly ensure strings
 
       const response = await fetch('/api/config/accounts', {
         method: 'POST',
@@ -45,6 +47,7 @@ export default function ConfigInterface({ initialAccounts, userEmail }: ConfigIn
         body: JSON.stringify({
           accountName: newAccountName,
           pat: newPAT,
+          // Pass as array of strings to preserve precision
           teamIds: teamIds.length > 0 ? teamIds : undefined,
         }),
       });
