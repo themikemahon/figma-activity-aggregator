@@ -140,7 +140,10 @@ export class Storage {
 
       // Store team IDs if provided
       if (teamIds && teamIds.length > 0) {
-        await kv.set(this.keys.accountTeamIds(userId, accountName), JSON.stringify(teamIds));
+        // Ensure teamIds is an array of strings
+        const teamIdsArray = Array.isArray(teamIds) ? teamIds : [teamIds];
+        const teamIdsStrings = teamIdsArray.map(id => String(id));
+        await kv.set(this.keys.accountTeamIds(userId, accountName), JSON.stringify(teamIdsStrings));
       }
 
       // Store timestamps
@@ -192,7 +195,12 @@ export class Storage {
       const expiresAt = await kv.get<string>(this.keys.accountExpires(userId, accountName));
 
       if (encryptedPAT && createdAt && updatedAt) {
-        const teamIds = teamIdsJson ? JSON.parse(teamIdsJson) : undefined;
+        let teamIds = teamIdsJson ? JSON.parse(teamIdsJson) : undefined;
+        
+        // Ensure teamIds is always an array if it exists
+        if (teamIds !== undefined && !Array.isArray(teamIds)) {
+          teamIds = [teamIds];
+        }
         
         accounts.push({
           userId,
