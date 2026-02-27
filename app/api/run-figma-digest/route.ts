@@ -292,8 +292,17 @@ async function processAccount(
     // Get user info to know who we're filtering for
     const figmaUser = await figmaClient.getMe();
     
+    logger.debug('Raw Figma user response', {
+      operation: 'processAccount',
+      userId,
+      accountName,
+      figmaUser: JSON.stringify(figmaUser),
+      hasId: !!figmaUser?.id,
+      hasHandle: !!figmaUser?.handle,
+    });
+    
     if (!figmaUser || !figmaUser.id) {
-      throw new Error('Failed to fetch Figma user info - user object is invalid');
+      throw new Error(`Failed to fetch Figma user info - user object is invalid: ${JSON.stringify(figmaUser)}`);
     }
     
     logger.info('Fetched Figma user info for filtering', {
