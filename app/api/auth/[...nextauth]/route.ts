@@ -10,7 +10,7 @@ const FigmaProvider = {
   authorization: {
     url: 'https://www.figma.com/oauth',
     params: {
-      scope: 'current_user:read file_content:read file_comments:read file_versions:read',
+      scope: 'current_user:read file_content:read file_comments:read file_versions:read webhooks:write',
       response_type: 'code',
     },
   },
