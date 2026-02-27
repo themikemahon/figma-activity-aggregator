@@ -346,7 +346,6 @@ export class Storage {
   async updateLastDigestTime(userId: string, accountName: string, timestamp: string): Promise<void> {
     await kv.set(this.keys.accountLastDigest(userId, accountName), timestamp);
   }
-}
 
   /**
    * Store webhook event

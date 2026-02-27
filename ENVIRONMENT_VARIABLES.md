@@ -12,8 +12,9 @@ This guide provides detailed instructions for setting up all required and option
 | `KV_REST_API_TOKEN` | ✅ Yes | Upstash Redis REST API token |
 | `NEXTAUTH_SECRET` | ✅ Yes | NextAuth.js session encryption key |
 | `NEXTAUTH_URL` | ✅ Yes | Application URL |
-| `EMAIL_SERVER` | ✅ Yes | SMTP server for magic links |
-| `EMAIL_FROM` | ✅ Yes | Sender email address |
+| `FIGMA_CLIENT_ID` | ✅ Yes | Figma OAuth app client ID |
+| `FIGMA_CLIENT_SECRET` | ✅ Yes | Figma OAuth app client secret |
+| `FIGMA_WEBHOOK_SECRET` | ✅ Yes | Secret for verifying Figma webhook signatures |
 | `KV_REST_API_READ_ONLY_TOKEN` | ❌ No | Upstash read-only token |
 | `KV_URL` | ❌ No | Upstash Redis connection URL |
 | `ALLOWED_EMAILS` | ❌ No | Email whitelist |
@@ -209,62 +210,71 @@ NEXTAUTH_URL=http://localhost:3000
 
 **Note**: Vercel automatically sets this for preview deployments, but you should set it explicitly for production.
 
-### 7. EMAIL_SERVER
+### 7. FIGMA_CLIENT_ID
 
-**Purpose**: SMTP server configuration for sending magic link authentication emails
+**Purpose**: OAuth client ID for your Figma OAuth app
 
-**Format**: `smtp://username:password@smtp.example.com:port`
+**How to Get**:
+1. Go to https://www.figma.com/developers/apps
+2. Select your OAuth app (or create one)
+3. Copy the "Client ID"
 
-**Examples**:
+**Format**: Alphanumeric string
 
-**SendGrid**:
+**Example**:
 ```bash
-EMAIL_SERVER=smtp://apikey:SG.your-api-key@smtp.sendgrid.net:587
+FIGMA_CLIENT_ID=abc123xyz789
 ```
 
-**Mailgun**:
+### 8. FIGMA_CLIENT_SECRET
+
+**Purpose**: OAuth client secret for your Figma OAuth app
+
+**How to Get**:
+1. Go to https://www.figma.com/developers/apps
+2. Select your OAuth app
+3. Copy the "Client Secret"
+
+**Format**: Alphanumeric string
+
+**Example**:
 ```bash
-EMAIL_SERVER=smtp://postmaster@your-domain.com:your-password@smtp.mailgun.org:587
+FIGMA_CLIENT_SECRET=abc123xyz789def456
 ```
 
-**AWS SES**:
+**⚠️ Security Notes**:
+- Never commit to version control
+- Treat like a password
+- Regenerate if compromised
+
+### 9. FIGMA_WEBHOOK_SECRET
+
+**Purpose**: Secret passphrase for verifying Figma webhook signatures
+
+**How to Generate**: Create a random string (can be any value you choose)
+
+**Option A - OpenSSL**:
 ```bash
-EMAIL_SERVER=smtp://your-smtp-username:your-smtp-password@email-smtp.us-east-1.amazonaws.com:587
+openssl rand -base64 32
 ```
 
-**Gmail** (not recommended for production):
+**Option B - Node.js**:
 ```bash
-EMAIL_SERVER=smtp://your-email@gmail.com:your-app-password@smtp.gmail.com:587
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-**Alternative Format** (individual variables):
+**Format**: Any string (recommended: 32+ characters)
+
+**Example**:
 ```bash
-EMAIL_SERVER_HOST=smtp.sendgrid.net
-EMAIL_SERVER_PORT=587
-EMAIL_SERVER_USER=apikey
-EMAIL_SERVER_PASSWORD=SG.your-api-key
+FIGMA_WEBHOOK_SECRET=my-super-secret-webhook-passphrase-12345
 ```
 
-### 8. EMAIL_FROM
-
-**Purpose**: Email address to send magic link emails from
-
-**Format**: `email@domain.com` or `"Display Name" <email@domain.com>`
-
-**Examples**:
-```bash
-EMAIL_FROM=noreply@your-domain.com
-EMAIL_FROM="Figma Aggregator" <noreply@your-domain.com>
-```
-
-**Requirements**:
-- Must be a verified sender in your email service
-- Should be a no-reply or system email address
-- Must match your email service configuration
+**Note**: This value is used when registering webhooks with Figma and for verifying incoming webhook requests. You choose this value - it's not provided by Figma.
 
 ## Optional Variables
 
-### 9. KV_REST_API_READ_ONLY_TOKEN
+### 10. KV_REST_API_READ_ONLY_TOKEN
 
 **Purpose**: Read-only token for Upstash Redis (optional, for read-only operations)
 
@@ -275,7 +285,7 @@ EMAIL_FROM="Figma Aggregator" <noreply@your-domain.com>
 KV_REST_API_READ_ONLY_TOKEN=AYQgASQgOTk5OTk5OTktOTk5OS05OTk5LTk5OTktOTk5OTk5OTk5OTk5
 ```
 
-### 10. KV_URL
+### 11. KV_URL
 
 **Purpose**: Upstash Redis connection URL (optional, for direct Redis protocol)
 
@@ -288,7 +298,7 @@ KV_REST_API_READ_ONLY_TOKEN=AYQgASQgOTk5OTk5OTktOTk5OS05OTk5LTk5OTktOTk5OTk5OTk5
 KV_URL=redis://default:abc123@figma-activity-storage.upstash.io:6379
 ```
 
-### 11. ALLOWED_EMAILS
+### 12. ALLOWED_EMAILS
 
 **Purpose**: Comma-separated list of email addresses allowed to access the system
 
@@ -308,7 +318,7 @@ ALLOWED_EMAILS=alice@company.com,bob@company.com,charlie@company.com
 - Prevent unauthorized access in shared workspaces
 - Compliance requirements
 
-### 12. DIGEST_LOOKBACK_HOURS
+### 13. DIGEST_LOOKBACK_HOURS
 
 **Purpose**: Number of hours to look back for activity when no previous digest timestamp exists
 

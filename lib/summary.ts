@@ -28,7 +28,7 @@ export interface Summary {
 export class SummaryGenerator {
   /**
    * Generate per-event messages
-   * Format: [FIGMA][account] timestamp – project • user – action "file" url
+   * Format: [FIGMA][account] timestamp – project • user – action "file" <url>
    */
   static generatePerEventSummaries(events: ActivityEvent[]): Summary[] {
     return events.map(event => {
@@ -36,7 +36,8 @@ export class SummaryGenerator {
       const user = event.userName || 'Unknown User';
       const action = this.formatAction(event.action);
       
-      const text = `[FIGMA][${event.account}] ${timestamp} – ${event.projectName} • ${user} – ${action} "${event.fileName}" ${event.url}`;
+      // Format with clickable link: <url|text>
+      const text = `[FIGMA][${event.account}] ${timestamp} – ${event.projectName} • ${user} – ${action} <${event.url}|"${event.fileName}">`;
       
       return { text };
     });

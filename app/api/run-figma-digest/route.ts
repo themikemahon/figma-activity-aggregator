@@ -364,8 +364,8 @@ async function processAccount(
 }
 
 /**
- * Fetch activity for a single account
- * Retrieves teams, projects, files, versions, and comments
+ * Fetch activity for a single account from webhook events
+ * Reads stored webhook events instead of polling Figma API
  */
 async function fetchAccountActivity(
   figmaClient: FigmaClient,
@@ -385,91 +385,88 @@ async function fetchAccountActivity(
     return events;
   }
   
-  logger.info(`Processing ${teamIds.length} team(s)`, {
+  logger.info(`Processing webhook events for ${teamIds.length} team(s)`, {
     operation: 'fetchAccountActivity',
     accountName,
     teamCount: teamIds.length,
   });
   
-  // Process each team
-  for (const teamId of teamIds) {
+  // Get webhook events since last digest
+  const storage = new Storage(process.env.ENCRYPTION_KEY!);
+  const sinceDate = new Date(since);
+  const now = new Date();
+  
+  // Get events for each day since last digest
+  const dates: string[] = [];
+  for (let d = new Date(sinceDate); d <= now; d.setDate(d.getDate() + 1)) {
+    dates.push(d.toISOString().split('T')[0]); // YYYY-MM-DD
+  }
+  
+  logger.debug('Fetching webhook events for date range', {
+    operation: 'fetchAccountActivity',
+    accountName,
+    dates: dates.length,
+    since,
+  });
+  
+  // Fetch all webhook events for these dates
+  const allWebhookEvents: any[] = [];
+  for (const date of dates) {
+    const dayEvents = await storage.getWebhookEvents(date);
+    allWebhookEvents.push(...dayEvents);
+  }
+  
+  logger.info('Retrieved webhook events', {
+    operation: 'fetchAccountActivity',
+    accountName,
+    totalEvents: allWebhookEvents.length,
+  });
+  
+  // Filter events for this account's teams
+  const teamIdSet = new Set(teamIds);
+  const relevantWebhookEvents = allWebhookEvents.filter(event => 
+    teamIdSet.has(event.teamId) && new Date(event.timestamp) > sinceDate
+  );
+  
+  logger.info('Filtered webhook events for account teams', {
+    operation: 'fetchAccountActivity',
+    accountName,
+    relevantEvents: relevantWebhookEvents.length,
+  });
+  
+  // Convert webhook events to ActivityEvents
+  for (const webhookEvent of relevantWebhookEvents) {
     try {
-      const projects = await figmaClient.listTeamProjects(teamId);
+      // Fetch file metadata to get full context
+      const fileMeta = await figmaClient.getFileMeta(webhookEvent.fileKey);
       
-      for (const project of projects) {
-        try {
-          const files = await figmaClient.listProjectFiles(project.id);
-          
-          for (const file of files) {
-            try {
-              const fileModifiedDate = new Date(file.last_modified);
-              const sinceDate = new Date(since);
-              
-              if (fileModifiedDate <= sinceDate) {
-                continue;
-              }
-              
-              // Fetch versions
-              const versions = await figmaClient.listFileVersions(file.key, { since });
-              
-              for (const version of versions) {
-                const event = ActivityNormalizer.normalizeVersion(
-                  version,
-                  file,
-                  project,
-                  accountName
-                );
-                events.push(event);
-              }
-              
-              // Fetch comments
-              const comments = await figmaClient.listFileComments(file.key);
-              
-              for (const comment of comments) {
-                const commentDate = new Date(comment.created_at);
-                
-                if (commentDate > sinceDate) {
-                  const event = ActivityNormalizer.normalizeComment(
-                    comment,
-                    file,
-                    project,
-                    accountName
-                  );
-                  events.push(event);
-                }
-              }
-            } catch (fileError) {
-              logger.partialFailure(
-                'Error processing file',
-                fileError instanceof Error ? fileError : new Error('Unknown error'),
-                {
-                  operation: 'fetchAccountActivity',
-                  accountName,
-                  fileKey: file.key,
-                }
-              );
-            }
-          }
-        } catch (projectError) {
-          logger.partialFailure(
-            'Error processing project',
-            projectError instanceof Error ? projectError : new Error('Unknown error'),
-            {
-              operation: 'fetchAccountActivity',
-              accountName,
-              projectId: project.id,
-            }
-          );
-        }
-      }
-    } catch (teamError) {
+      // Create ActivityEvent from webhook
+      const event: ActivityEvent = {
+        action: 'FILE_UPDATED',
+        ts: webhookEvent.timestamp,
+        userId: webhookEvent.triggeredBy?.id || 'unknown',
+        userName: webhookEvent.triggeredBy?.handle || 'Unknown User',
+        fileKey: webhookEvent.fileKey,
+        fileName: webhookEvent.fileName || fileMeta.name,
+        projectId: 'unknown', // Webhook doesn't include project info
+        projectName: 'Unknown Project', // Webhook doesn't include project info
+        account: accountName,
+        url: `https://www.figma.com/file/${webhookEvent.fileKey}`,
+        metadata: {
+          eventType: webhookEvent.eventType,
+          teamId: webhookEvent.teamId,
+        },
+      };
+      
+      events.push(event);
+    } catch (error) {
       logger.partialFailure(
-        'Error processing team',
-        teamError instanceof Error ? teamError : new Error('Unknown error'),
+        'Error processing webhook event',
+        error instanceof Error ? error : new Error('Unknown error'),
         {
           operation: 'fetchAccountActivity',
           accountName,
-          teamId,
+          fileKey: webhookEvent.fileKey,
         }
       );
     }

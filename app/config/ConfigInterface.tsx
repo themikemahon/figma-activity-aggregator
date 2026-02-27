@@ -35,19 +35,35 @@ export default function ConfigInterface({ accounts, userEmail, userName }: Confi
     setMessage('');
 
     try {
+      // Update team IDs
       const response = await fetch(`/api/config/accounts/${encodeURIComponent(accountName)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamIds }),
       });
 
-      if (response.ok) {
-        setMessage(`Team IDs updated for ${accountName}!`);
-        setTimeout(() => window.location.reload(), 1000);
-      } else {
+      if (!response.ok) {
         const data = await response.json();
         setMessage(`Error: ${data.error || 'Failed to update'}`);
+        return;
       }
+
+      // Register webhooks for each team
+      for (const teamId of teamIds) {
+        try {
+          await fetch('/api/webhooks/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ teamId, accountName }),
+          });
+        } catch (webhookError) {
+          console.error('Failed to register webhook:', webhookError);
+          // Continue even if webhook registration fails
+        }
+      }
+
+      setMessage(`Team IDs updated and webhooks registered for ${accountName}!`);
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       setMessage('Error updating team IDs');
     } finally {
