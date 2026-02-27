@@ -1,208 +1,128 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
-import EmailProvider from 'next-auth/providers/email';
-import { kv } from '@vercel/kv';
+import { JWT } from 'next-auth/jwt';
+import { Storage } from '@/lib/storage';
 
-// Minimal adapter for email verification tokens only
-const createMinimalAdapter = () => ({
-  async createUser(user: any) {
-    // For JWT sessions, return a user object with email
+// Custom Figma OAuth provider
+const FigmaProvider = {
+  id: 'figma',
+  name: 'Figma',
+  type: 'oauth' as const,
+  authorization: {
+    url: 'https://www.figma.com/oauth',
+    params: {
+      scope: 'current_user:read file_content:read file_comments:read file_versions:read',
+      response_type: 'code',
+    },
+  },
+  token: 'https://api.figma.com/v1/oauth/token',
+  userinfo: 'https://api.figma.com/v1/me',
+  clientId: process.env.FIGMA_CLIENT_ID,
+  clientSecret: process.env.FIGMA_CLIENT_SECRET,
+  profile(profile: any) {
     return {
-      id: user.email, // Use email as ID
-      email: user.email,
-      emailVerified: new Date(),
+      id: profile.id,
+      email: profile.email,
+      name: profile.handle,
+      image: profile.img_url,
     };
   },
-
-  async getUser(id: string) {
-    // Not needed for JWT sessions
-    return null;
-  },
-
-  async getUserByEmail(email: string) {
-    // For JWT, return a user object with the email
-    return {
-      id: email, // Use email as ID
-      email,
-      emailVerified: null,
-    };
-  },
-
-  async getUserByAccount() {
-    return null;
-  },
-
-  async updateUser(user: any) {
-    return user;
-  },
-
-  async linkAccount() {
-    return null;
-  },
-
-  async createSession() {
-    return null;
-  },
-
-  async getSessionAndUser() {
-    return null;
-  },
-
-  async updateSession() {
-    return null;
-  },
-
-  async deleteSession() {
-    return null;
-  },
-
-  async createVerificationToken({ identifier, expires, token }: any) {
-    const verificationToken = {
-      identifier,
-      token,
-      expires: expires.toISOString(),
-    };
-    const key = `verification:${identifier}:${token}`;
-    console.log('[Auth] Creating verification token:', key, 'expires:', verificationToken.expires);
-    await kv.set(key, JSON.stringify(verificationToken));
-    await kv.expire(key, 24 * 60 * 60);
-    return verificationToken;
-  },
-
-  async useVerificationToken({ identifier, token }: any) {
-    const key = `verification:${identifier}:${token}`;
-    const sessionKey = `verification-session:${identifier}:${token}`;
-    
-    console.log('[Auth] useVerificationToken called');
-    console.log('[Auth] Identifier:', identifier);
-    console.log('[Auth] Token (first 20 chars):', token.substring(0, 20));
-    
-    // Check if there's an active session from a recent verification
-    const existingSession = await kv.get(sessionKey);
-    if (existingSession) {
-      console.log('[Auth] Found existing verification session!');
-      const sessionData = typeof existingSession === 'string' ? JSON.parse(existingSession) : existingSession;
-      return {
-        ...sessionData,
-        expires: new Date(sessionData.expires),
-      };
-    } else {
-      console.log('[Auth] No existing session found');
-    }
-    
-    const tokenData = await kv.get(key);
-    
-    if (!tokenData) {
-      console.log('[Auth] Verification token not found in KV');
-      return null;
-    }
-    
-    console.log('[Auth] Verification token found in KV!');
-    const verificationToken = typeof tokenData === 'string' ? JSON.parse(tokenData) : tokenData;
-    
-    // Check if token is expired
-    const expiresDate = new Date(verificationToken.expires);
-    if (expiresDate < new Date()) {
-      console.log('[Auth] Token has expired');
-      await kv.del(key);
-      return null;
-    }
-    
-    // Create a session that lasts 5 minutes to handle email security scanners
-    console.log('[Auth] Creating verification session (5 min TTL)');
-    await kv.set(sessionKey, JSON.stringify(verificationToken));
-    await kv.expire(sessionKey, 300); // 5 minutes instead of 60 seconds
-    console.log('[Auth] Session created successfully');
-    
-    // Don't delete the original token immediately - let it expire naturally
-    console.log('[Auth] Keeping original token for fallback');
-    
-    console.log('[Auth] Token is valid, created session, expires:', verificationToken.expires);
-    return {
-      ...verificationToken,
-      expires: expiresDate,
-    };
-  },
-});
+};
 
 export const authOptions: NextAuthOptions = {
-  providers: [
-    EmailProvider({
-      server: {
-        host: process.env.EMAIL_SERVER_HOST,
-        port: Number(process.env.EMAIL_SERVER_PORT),
-        auth: {
-          user: process.env.EMAIL_SERVER_USER,
-          pass: process.env.EMAIL_SERVER_PASSWORD,
-        },
-      },
-      from: process.env.EMAIL_FROM,
-    }),
-  ],
-  adapter: createMinimalAdapter() as any,
+  providers: [FigmaProvider as any],
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
     signIn: '/auth/signin',
-    verifyRequest: '/auth/verify-request',
     error: '/auth/error',
   },
   callbacks: {
-    async signIn({ user }) {
-      console.log('[Auth] signIn callback, user:', user.email);
-      // Check email whitelist if configured
-      const allowedEmails = process.env.ALLOWED_EMAILS;
-      
-      if (allowedEmails) {
-        const whitelist = allowedEmails.split(',').map(e => e.trim().toLowerCase());
-        const userEmail = user.email?.toLowerCase();
+    async jwt({ token, account, profile }) {
+      // On initial sign-in, save OAuth tokens
+      if (account && profile) {
+        token.accessToken = account.access_token;
+        token.refreshToken = account.refresh_token;
+        token.expiresAt = account.expires_at;
+        token.figmaUserId = profile.id;
+        token.figmaEmail = profile.email;
+        token.figmaHandle = profile.handle;
         
-        if (!userEmail || !whitelist.includes(userEmail)) {
-          console.log(`[Auth] Access denied for email: ${userEmail}`);
-          return false;
+        // Store OAuth tokens in database
+        try {
+          const storage = new Storage(process.env.ENCRYPTION_KEY!);
+          const now = new Date().toISOString();
+          
+          await storage.saveUserAccount({
+            userId: profile.email as string,
+            accountName: profile.handle as string,
+            encryptedPAT: storage.encryptPAT(account.access_token as string),
+            teamIds: [], // Will be populated from Figma API
+            createdAt: now,
+            updatedAt: now,
+          });
+        } catch (error) {
+          console.error('[Auth] Failed to store OAuth tokens:', error);
         }
-        
-        console.log(`[Auth] Access granted for whitelisted email: ${userEmail}`);
       }
       
-      console.log('[Auth] signIn successful');
-      return true;
-    },
-    async jwt({ token, user, account, profile }) {
-      console.log('[Auth] jwt callback');
-      console.log('[Auth] - user:', JSON.stringify(user));
-      console.log('[Auth] - token.email before:', token.email);
-      console.log('[Auth] - token.sub:', token.sub);
-      
-      // On sign-in, user object will be present
-      if (user?.email) {
-        token.email = user.email;
-        token.sub = user.email; // Use email as subject
+      // Check if token needs refresh (expires in less than 1 hour)
+      if (token.expiresAt && Date.now() > (token.expiresAt as number) - 60 * 60 * 1000) {
+        try {
+          const response = await fetch('https://api.figma.com/v1/oauth/refresh', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Authorization': `Basic ${Buffer.from(
+                `${process.env.FIGMA_CLIENT_ID}:${process.env.FIGMA_CLIENT_SECRET}`
+              ).toString('base64')}`,
+            },
+            body: new URLSearchParams({
+              refresh_token: token.refreshToken as string,
+            }),
+          });
+          
+          if (response.ok) {
+            const tokens = await response.json();
+            token.accessToken = tokens.access_token;
+            token.refreshToken = tokens.refresh_token;
+            token.expiresAt = Date.now() + tokens.expires_in * 1000;
+            
+            // Update stored token
+            try {
+              const storage = new Storage(process.env.ENCRYPTION_KEY!);
+              const accounts = await storage.getUserAccounts(token.figmaEmail as string);
+              const account = accounts.find(a => a.accountName === token.figmaHandle);
+              
+              if (account) {
+                await storage.saveUserAccount({
+                  ...account,
+                  encryptedPAT: storage.encryptPAT(tokens.access_token),
+                  updatedAt: new Date().toISOString(),
+                });
+              }
+            } catch (error) {
+              console.error('[Auth] Failed to update refreshed token:', error);
+            }
+          }
+        } catch (error) {
+          console.error('[Auth] Failed to refresh token:', error);
+        }
       }
       
-      console.log('[Auth] - token.email after:', token.email);
       return token;
     },
     async session({ session, token }) {
-      console.log('[Auth] session callback');
-      console.log('[Auth] - token:', JSON.stringify(token));
-      console.log('[Auth] - token.email:', token.email);
-      console.log('[Auth] - token.sub:', token.sub);
+      // Add Figma info to session
+      session.user = {
+        id: token.figmaUserId as string,
+        email: token.figmaEmail as string,
+        name: token.figmaHandle as string,
+        image: token.picture as string,
+      };
+      session.accessToken = token.accessToken as string;
       
-      // Populate user from token - use sub as fallback if email not present
-      const email = (token.email || token.sub) as string;
-      
-      if (email) {
-        session.user = {
-          id: email,
-          email: email,
-          name: token.name as string | undefined,
-          image: token.picture as string | undefined,
-        };
-      }
-      
-      console.log('[Auth] - session.user.email set to:', session.user?.email);
       return session;
     },
   },

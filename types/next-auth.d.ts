@@ -8,6 +8,7 @@ declare module 'next-auth' {
       name?: string | null;
       image?: string | null;
     };
+    accessToken?: string;
   }
 
   interface User {
@@ -15,5 +16,16 @@ declare module 'next-auth' {
     email: string;
     name?: string | null;
     image?: string | null;
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    accessToken?: string;
+    refreshToken?: string;
+    expiresAt?: number;
+    figmaUserId?: string;
+    figmaEmail?: string;
+    figmaHandle?: string;
   }
 }
