@@ -88,18 +88,26 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { accountName, pat, teamIds } = body;
+    const { accountName, pat, teamIds: rawTeamIds } = body;
 
     // Use email as userId for JWT sessions
     const userId = session?.user?.email || 'unknown';
     
+    // Ensure team IDs are strings to preserve precision
+    const teamIds = rawTeamIds && Array.isArray(rawTeamIds) 
+      ? rawTeamIds.map((id: any) => String(id))
+      : undefined;
+    
     console.log('[ConfigAPI] Using userId:', userId);
+    console.log('[ConfigAPI] Raw teamIds:', rawTeamIds);
+    console.log('[ConfigAPI] Converted teamIds:', teamIds);
 
     logger.debug('Adding new account', {
       operation: 'POST',
       userEmail: session?.user?.email,
       accountName,
       hasTeamIds: !!teamIds && Array.isArray(teamIds) && teamIds.length > 0,
+      teamIds,
     });
 
     // Validate input
