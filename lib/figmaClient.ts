@@ -117,10 +117,11 @@ export class FigmaClient {
 
   /**
    * Get common headers for Figma API requests
+   * Uses Bearer token for OAuth, X-Figma-Token for PATs
    */
   private getHeaders(): HeadersInit {
     return {
-      'X-Figma-Token': this.accessToken,
+      'Authorization': `Bearer ${this.accessToken}`,
       'Content-Type': 'application/json',
     };
   }

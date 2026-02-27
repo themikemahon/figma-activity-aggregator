@@ -295,12 +295,12 @@ async function processAccount(
   });
   
   try {
-    // Decrypt PAT
-    const pat = storage.decryptPAT(encryptedPAT);
+    // Decrypt OAuth token (stored as encrypted "PAT")
+    const accessToken = storage.decryptPAT(encryptedPAT);
     
-    // Create Figma client
+    // Create Figma client with OAuth token
     const figmaClient = new FigmaClient({
-      accessToken: pat,
+      accessToken: accessToken,
       accountName,
     });
     
