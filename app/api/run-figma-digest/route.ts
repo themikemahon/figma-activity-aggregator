@@ -292,6 +292,10 @@ async function processAccount(
     // Get user info to know who we're filtering for
     const figmaUser = await figmaClient.getMe();
     
+    if (!figmaUser || !figmaUser.id) {
+      throw new Error('Failed to fetch Figma user info - user object is invalid');
+    }
+    
     logger.info('Fetched Figma user info for filtering', {
       operation: 'processAccount',
       userId,
@@ -606,8 +610,17 @@ function getDefaultSinceTime(): string {
  */
 function filterEventsForUser(
   events: ActivityEvent[],
-  figmaUser: { id: string; handle: string; email: string }
+  figmaUser: { id: string; handle: string; email: string } | null
 ): ActivityEvent[] {
+  // If no user info, return all events (fallback)
+  if (!figmaUser || !figmaUser.id) {
+    logger.warn('No Figma user info available for filtering - returning all events', {
+      operation: 'filterEventsForUser',
+      totalEvents: events.length,
+    });
+    return events;
+  }
+  
   logger.debug('Filtering events for user', {
     operation: 'filterEventsForUser',
     figmaUserId: figmaUser.id,
