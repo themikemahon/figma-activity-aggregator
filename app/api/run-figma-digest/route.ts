@@ -530,7 +530,7 @@ function filterEventsForUser(
   // First pass: identify user's edits and comments
   for (const event of events) {
     if (event.userId === figmaUser.id) {
-      if (event.action === 'FILE_VERSION_CREATED') {
+      if (event.action === 'FILE_VERSION_CREATED' || event.action === 'FILE_UPDATED') {
         userEditedFiles.add(event.fileKey);
       } else if (event.action === 'COMMENT_ADDED') {
         // Store comment ID from metadata if available
@@ -549,8 +549,8 @@ function filterEventsForUser(
   
   // Second pass: filter events
   const relevantEvents = events.filter(event => {
-    // Include if user created the version
-    if (event.action === 'FILE_VERSION_CREATED' && event.userId === figmaUser.id) {
+    // Include if user created the version or updated the file
+    if ((event.action === 'FILE_VERSION_CREATED' || event.action === 'FILE_UPDATED') && event.userId === figmaUser.id) {
       return true;
     }
     
