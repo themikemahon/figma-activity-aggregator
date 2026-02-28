@@ -529,6 +529,16 @@ function filterEventsForUser(
   
   // First pass: identify user's edits and comments
   for (const event of events) {
+    // Debug: log event details
+    logger.debug('Examining event for user filtering', {
+      operation: 'filterEventsForUser',
+      action: event.action,
+      userId: event.userId,
+      userName: event.userName,
+      fileKey: event.fileKey,
+      targetUserId: figmaUser.id,
+    });
+    
     if (event.userId === figmaUser.id) {
       if (event.action === 'FILE_VERSION_CREATED' || event.action === 'FILE_UPDATED') {
         userEditedFiles.add(event.fileKey);
