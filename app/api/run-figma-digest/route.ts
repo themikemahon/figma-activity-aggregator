@@ -559,6 +559,12 @@ function filterEventsForUser(
   
   // Second pass: filter events
   const relevantEvents = events.filter(event => {
+    // Include FILE_UPDATED events from webhooks (they don't have user info)
+    // These are for files in teams the user configured, so they're relevant
+    if (event.action === 'FILE_UPDATED' && event.userId === 'unknown') {
+      return true;
+    }
+    
     // Include if user created the version or updated the file
     if ((event.action === 'FILE_VERSION_CREATED' || event.action === 'FILE_UPDATED') && event.userId === figmaUser.id) {
       return true;
